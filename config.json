@@ -1,0 +1,23 @@
+{
+    "CanvasCsvPattern": "Canvas-COT5930_005_16523",
+    "CodepathCsvPattern": "Codepath-COT5930_005_16523",
+    "HeadersToLookFor": [
+        "Member ID",
+        "Full Name"
+    ],
+    "ColumnMapping": {
+        "Email": "Email",
+        "SIS Login ID": "SIS Login ID",
+        "Assignments": {
+            "Project 1: Scavenger Hunt (2033669)": "ASN - 1 Points",
+            "Project 2: BeReal Clone PT 1 (2033676)": "ASN - 2 Points",
+            "Project 3: BeReal PT 2 (2033716)": "ASN - 3 Points",
+            "Project 4: Memory Game (2034487)": "ASN - 4 Points",
+            "Project 5: Trivia Game (2034520)": "ASN - 5 Points",
+            "Project 6: TranslateMe (2034742)": "ASN - 6 Points",
+            "Unit 7 - Final Project Part 3: Third Milestone (2172876)": "GM - 7 Score",
+            "Unit 8 - Final Project Part 4: Fourth Milestone (2035120)": "GM - 8 Score",
+            "Unit 9 - Final Project Part 5: Fifth Milestone (2035167)": "GM - 9 Score"
+        }
+    }
+}

@@ -1,0 +1,39 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      csv-parser:
+        specifier: ^3.0.0
+        version: 3.0.0
+      csv-writer:
+        specifier: ^1.6.0
+        version: 1.6.0
+
+packages:
+
+  csv-parser@3.0.0:
+    resolution: {integrity: sha512-s6OYSXAK3IdKqYO33y09jhypG/bSDHPuyCme/IdEHfWpLf/jKcpitVFyOC6UemgGk8v7Q5u2XE0vvwmanxhGlQ==}
+    engines: {node: '>= 10'}
+    hasBin: true
+
+  csv-writer@1.6.0:
+    resolution: {integrity: sha512-NOx7YDFWEsM/fTRAJjRpPp8t+MKRVvniAg9wQlUKx20MFrPs73WLJhFf5iteqrxNYnsy924K3Iroh3yNHeYd2g==}
+
+  minimist@1.2.8:
+    resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
+
+snapshots:
+
+  csv-parser@3.0.0:
+    dependencies:
+      minimist: 1.2.8
+
+  csv-writer@1.6.0: {}
+
+  minimist@1.2.8: {}
