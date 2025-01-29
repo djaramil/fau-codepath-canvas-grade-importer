@@ -1,3 +1,4 @@
 node_modues/
 .DS_Store
-data/
+data/*.csv
+data/*.xlsx
