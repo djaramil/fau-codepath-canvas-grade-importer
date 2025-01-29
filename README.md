@@ -51,3 +51,5 @@ Temporary file data/2025-01-28T2302_Codepath-COT5930_012_16128-temp.csv has been
 Check the *-missing.csv file - contains emails that are not in the student roster.  These need to be investigated - can be mismatching email address or students that have dropped from the class.
 
 Check the *-updated.csv file - contains the updated Canvas file that you can upload back into Canvas.
+
+Once everything looks good, upload the *-updated.csv file back into Canvas.
