@@ -99,6 +99,7 @@ def main():
             codepath_reader = csv.DictReader(codepath_file)
             for codepath_row in codepath_reader:
                 email = codepath_row.get(column_mapping["Email"])
+                student_name = codepath_row.get("Full Name", "")  # Get student name
                 if email:
                     canvas_row = next(
                         (
@@ -121,7 +122,7 @@ def main():
                         updated_data.append(updated_row)
                         processed_emails.add(email)
                     else:
-                        emails_without_grades.append(email.lower())
+                        emails_without_grades.append((email.lower(), student_name))  # Store tuple of email and name
 
         # Write the updated data to the output CSV file
         if updated_data:
@@ -136,8 +137,8 @@ def main():
         if emails_without_grades:
             with open(missing_emails_filename, "w", newline="") as missing_file:
                 writer = csv.writer(missing_file)
-                writer.writerow(["Email"])
-                writer.writerows([[email] for email in emails_without_grades])
+                writer.writerow(["Email", "Student Name"])  # Add Student Name column
+                writer.writerows(emails_without_grades)  # Write both email and name
             print(
                 f"Emails that are not in the student roster written to {missing_emails_filename}"
             )
