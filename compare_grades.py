@@ -52,10 +52,15 @@ def compare_grades(old_file, new_file, columns_to_compare):
     return updates
 
 def get_latest_csv_files(root_directory):
+    config = load_config()
+    canvas_pattern = config['CanvasCsvPattern']
+    
     canvas_files = []
     for dirpath, dirnames, filenames in os.walk(root_directory):
         for filename in filenames:
-            if filename.startswith('2024') and 'Canvas' in filename and filename.endswith('.csv') and not filename.endswith('-missing.csv'):
+            # Only match files that are exactly [timestamp]_[pattern].csv
+            # This excludes -missing, -updated, or any other variations
+            if '_' + canvas_pattern + '.csv' in filename:
                 full_path = os.path.join(dirpath, filename)
                 canvas_files.append((full_path, os.path.getmtime(full_path)))
     
