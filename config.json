@@ -7,6 +7,7 @@
     ],
     "ColumnMapping": {
         "Email": "Email",
+        "Status": "Status",
         "SIS Login ID": "SIS Login ID",
         "Assignments": {
             "Project 1: Community Board (2205060)": "ASN - 1 Points",

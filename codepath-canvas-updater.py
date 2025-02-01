@@ -18,12 +18,8 @@ def get_latest_csv(pattern, directory="data/"):
 
 
 def remove_lines_before_headers(codepath_csv_filename, headers):
-    # print(f"Searching for headers: {headers} in file: {codepath_csv_filename}")
     with open(codepath_csv_filename, "r") as file:
         lines = file.readlines()
-        # print(f"First few lines of the file:")
-        # for i, line in enumerate(lines[:5]):
-        #     print(f"Line {i + 1}: {line.strip()}")
 
     header_index = next(
         (
@@ -38,13 +34,19 @@ def remove_lines_before_headers(codepath_csv_filename, headers):
         # Create a temporary file name
         temp_filename = codepath_csv_filename.rsplit(".", 1)[0] + "-temp.csv"
 
-        # Write to the temporary file
+        # Write to the temporary file, removing the empty first column
         with open(temp_filename, "w") as temp_file:
-            temp_file.writelines(lines[header_index:])
+            # Get the header line and remove empty first column if it exists
+            header_line = lines[header_index].lstrip(',')  
+            temp_file.write(header_line)
+            
+            # Process remaining lines
+            for line in lines[header_index + 1:]:
+                # Remove empty first column if it exists
+                line = line.lstrip(',')
+                temp_file.write(line)
 
-        print(
-            f"The file has been saved without the lines before the headers to: {temp_filename}"
-        )
+        print(f"Cleared headers from codepath file: {temp_filename}")
         return temp_filename
     else:
         print(f"Headers {headers} not found in the file {codepath_csv_filename}.")
@@ -91,38 +93,77 @@ def main():
             print("No valid data found in the Canvas file.")
             return
 
+        # Print canvas data for debugging
+        # print("Canvas students:")
+        canvas_emails = set()
+        for row in canvas_data:
+            email = row[column_mapping["SIS Login ID"]].lower()
+            canvas_emails.add(email)
+            if "jdoischen" in email:
+                print(f"Found in Canvas: {email}")
+
+        # First get all Canvas emails for comparison
+        canvas_emails = set()
+        #print("\nCanvas students:")
+        for row in canvas_data:
+            email = row[column_mapping["SIS Login ID"]].lower()
+            canvas_emails.add(email)
+            #print(f"Added to Canvas set: {email}")
+
         updated_data = []
         emails_without_grades = []
         processed_emails = set()
 
-        with open(temp_codepath_csv_filename, "r") as codepath_file:
-            codepath_reader = csv.DictReader(codepath_file)
-            for codepath_row in codepath_reader:
-                email = codepath_row.get(column_mapping["Email"])
-                student_name = codepath_row.get("Full Name", "")  # Get student name
-                if email:
-                    canvas_row = next(
-                        (
-                            e
-                            for e in canvas_data
-                            if e[column_mapping["SIS Login ID"]].lower()
-                            == email.lower()
-                        ),
-                        None,
-                    )
-                    if canvas_row and email not in processed_emails:
-                        updated_row = canvas_row.copy()
+        # print("\nProcessing CodePath students:")
+        # Process CodePath students
+        with open(temp_codepath_csv_filename, "r", newline='') as codepath_file:
+            # Read all lines and process them
+            lines = codepath_file.readlines()
+            header = lines[0].strip()
+            data_lines = [line.strip() for line in lines[1:]]
+            
+            # Create a CSV reader from the processed lines
+            reader = csv.DictReader([header] + data_lines)
+            
+            for row in reader:
+                # Get email and skip if not present
+                email = row.get("Email")
+                if not email:  # Skip if no email
+                    continue
+                    
+                # Get status and student name
+                status = row.get("Status", '').strip()
+                student_name = row.get("Full Name", "")
+                email = email.lower()
+                
+                #print(f"Processing: {email}, Status: {status}")
+                
+                # Only process non-withdrawn students
+                if status == 'Withdrawn':
+                    #print(f"Skipping {email} - Withdrawn")
+                    continue
 
-                        # Update grades using Assignments mapping
-                        for canvas_col, codepath_col in column_mapping[
-                            "Assignments"
-                        ].items():
-                            updated_row[canvas_col] = codepath_row.get(codepath_col, "")
+                # If student is not in Canvas, check if they're dropped before adding to missing list
+                if email not in canvas_emails:
+                    certificate_status = row.get("CodePath Certificate Status", '').strip()
+                    if certificate_status == 'Dropped':
+                        #print(f"Skipping {email} - Certificate Status is Dropped")
+                        continue
+                    #print(f"Adding {email} to missing list - not in Canvas (Certificate Status: {certificate_status})")
+                    emails_without_grades.append((email, student_name))
+                    continue
 
-                        updated_data.append(updated_row)
-                        processed_emails.add(email)
-                    else:
-                        emails_without_grades.append((email.lower(), student_name))  # Store tuple of email and name
+                # Student is in Canvas, update their grades if not processed
+                if email not in processed_emails:
+                    for canvas_row in canvas_data:
+                        if canvas_row[column_mapping["SIS Login ID"]].lower() == email:
+                            updated_row = canvas_row.copy()
+                            # Update grades using Assignments mapping
+                            for canvas_col, codepath_col in column_mapping["Assignments"].items():
+                                updated_row[canvas_col] = row.get(codepath_col, "")
+                            updated_data.append(updated_row)
+                            processed_emails.add(email)
+                            break
 
         # Write the updated data to the output CSV file
         if updated_data:
@@ -133,19 +174,23 @@ def main():
                 writer.writerows(updated_data)
             print(f"Results written to {output_csv_filename}")
 
-        # Write the list of email addresses without grades to a separate file
-        if emails_without_grades:
-            with open(missing_emails_filename, "w", newline="") as missing_file:
-                writer = csv.writer(missing_file)
-                writer.writerow(["Email", "Student Name"])  # Add Student Name column
+        # Always create the missing emails file with headers, even if empty
+        with open(missing_emails_filename, "w", newline="") as missing_file:
+            writer = csv.writer(missing_file)
+            writer.writerow(["Email", "Student Name"])  # Add Student Name column
+            if emails_without_grades:
                 writer.writerows(emails_without_grades)  # Write both email and name
-            print(
-                f"Emails that are not in the student roster written to {missing_emails_filename}"
-            )
+                print(
+                    f"Missing students written to {missing_emails_filename}"
+                )
+            else:
+                print(
+                    f"No missing students written to {missing_emails_filename}"
+                )
 
         # If we've reached this point without any exceptions, remove the temporary file
-        os.remove(temp_codepath_csv_filename)
-        print(f"Temporary file {temp_codepath_csv_filename} has been removed.")
+        # os.remove(temp_codepath_csv_filename)
+        # print(f"Temporary file {temp_codepath_csv_filename} has been removed.")
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")
