@@ -11,9 +11,7 @@ def parse_csv(file_path):
     data = {}
     with open(file_path, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
-        # Print headers to debug
-        print(f"\nHeaders in {os.path.basename(file_path)}:")
-        print(list(reader.fieldnames))
+        # Headers are available in reader.fieldnames
         for row in reader:
             # Use Student column since that's what's in the CSV
             student_name = row.get('Student', '')
@@ -25,8 +23,6 @@ def compare_grades(old_file, new_file, columns_to_compare):
     old_data = parse_csv(old_file)
     new_data = parse_csv(new_file)
 
-    print("\nColumns we're looking for:")
-    print(columns_to_compare)
 
     updates = []
 
@@ -39,9 +35,8 @@ def compare_grades(old_file, new_file, columns_to_compare):
                     old_value = float(old_row[column].strip()) if old_row[column].strip() else 0.0
                     new_value = float(new_row[column].strip()) if new_row[column].strip() else 0.0
                     if abs(new_value - old_value) > 0.01:  # Use small epsilon for float comparison
-                        print(f"\nFound difference for {student} in {column}:")
-                        print(f"  Old: {old_value}")
-                        print(f"  New: {new_value}")
+                        project_num = column.split('(')[0].strip().split(':')[0].split()[-1]
+                        print(f"{student} - Project {project_num} - {old_value} -> {new_value}")
                         updates.append((student, column, str(old_value), str(new_value)))
                 else:
                     if column not in old_row:
@@ -71,7 +66,6 @@ def main():
     config = load_config()
     # Use Canvas assignment names (keys) instead of Codepath column names (values)
     columns_to_compare = list(config['ColumnMapping']['Assignments'].keys())
-    print(f"Columns to compare: {columns_to_compare}")
 
     data_directory = 'data'
     latest_files = get_latest_csv_files(data_directory)
@@ -92,11 +86,13 @@ def main():
 
     with open(output_filename, 'w') as f:
         if updates:
-            f.write(f"Updates found between {os.path.basename(old_file)} (old) and {os.path.basename(new_file)} (new):\n")
+            f.write("Updates found between:\n")
+            f.write(f"  Old: {os.path.basename(old_file)}\n")
+            f.write(f"  New: {os.path.basename(new_file)}\n\n")
             for student, column, old_value, new_value in updates:
-                f.write(f"Student: {student}\n")
-                f.write(f"  {column}: {old_value} -> {new_value}\n")
-                f.write("\n")
+                # Extract project number from the column name
+                project_num = column.split('(')[0].strip().split(':')[0].split()[-1]
+                f.write(f"{student} - Project {project_num} - {old_value} -> {new_value}\n")
             print(f"Updates have been written to {output_filename}")
         else:
             print("No updates found between the files.")

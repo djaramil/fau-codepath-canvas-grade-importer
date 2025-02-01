@@ -2,3 +2,4 @@ node_modues/
 .DS_Store
 data/*.csv
 data/*.xlsx
+data/*.out
