@@ -53,9 +53,8 @@ def get_latest_csv_files(root_directory):
     canvas_files = []
     for dirpath, dirnames, filenames in os.walk(root_directory):
         for filename in filenames:
-            # Only match files that are exactly [timestamp]_[pattern].csv
-            # This excludes -missing, -updated, or any other variations
-            if '_' + canvas_pattern + '.csv' in filename:
+            # Look for files that end with -updated.csv
+            if '_' + canvas_pattern + '-updated.csv' in filename:
                 full_path = os.path.join(dirpath, filename)
                 canvas_files.append((full_path, os.path.getmtime(full_path)))
     
