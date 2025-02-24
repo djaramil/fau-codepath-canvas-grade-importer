@@ -189,8 +189,8 @@ def main():
                 )
 
         # If we've reached this point without any exceptions, remove the temporary file
-        # os.remove(temp_codepath_csv_filename)
-        # print(f"Temporary file {temp_codepath_csv_filename} has been removed.")
+        os.remove(temp_codepath_csv_filename)
+        print(f"Temporary file {temp_codepath_csv_filename} has been removed.")
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")

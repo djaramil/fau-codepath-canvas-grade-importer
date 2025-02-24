@@ -2,145 +2,149 @@ import csv
 import os
 import json
 from datetime import datetime
+from io import StringIO
 
 def load_config():
     with open('config.json', 'r') as config_file:
         return json.load(config_file)
 
-def parse_csv(file_path):
+def remove_lines_before_headers(file_path, headers):
+    with open(file_path, "r") as file:
+        lines = file.readlines()
+
+    header_index = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if all(header in line for header in headers)
+        ),
+        -1,
+    )
+
+    if header_index == -1:
+        print(f"Headers {headers} not found in the file {file_path}.")
+        exit(-1)
+        
+    # Get the header line and remove empty first column if it exists
+    header_line = lines[header_index].lstrip(',')
+    data_lines = [line.lstrip(',') for line in lines[header_index + 1:]]
+    
+    return [header_line] + data_lines
+
+def parse_csv(file_path, config):
     data = {}
-    with open(file_path, 'r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        # Print headers to debug
-        print(f"\nHeaders in {os.path.basename(file_path)}:")
-        print(list(reader.fieldnames))
-        for row in reader:
-            student_name = row.get('Student', '')
-            if student_name:
-                data[student_name] = row
+    
+    # Get the cleaned lines with proper headers
+    lines = remove_lines_before_headers(file_path, config["HeadersToLookFor"])
+    
+    # Use StringIO to create a file-like object from the lines
+    csv_data = StringIO(''.join(lines))
+    
+    reader = csv.DictReader(csv_data)
+    # Print headers to debug
+    print(f"\nHeaders in {os.path.basename(file_path)}:")
+    print(list(reader.fieldnames))
+    
+    for row in reader:
+        student_name = row.get('Full Name', '')
+        # Skip students who have dropped
+        certificate_status = row.get('CodePath Certificate Status', '').strip()
+        if student_name and certificate_status != 'Dropped':
+            data[student_name] = row
     return data
 
-def find_missing_submissions(data, headers):
+def find_missing_submissions(data, headers, config):
     missing_assignments = {}
     
-    # Find columns that start with Project, Lab, or Unit
-    assignment_columns = [col for col in headers if any(col.startswith(prefix) for prefix in ["Project", "Lab", "Unit"])]
+    # Get assignment columns from config - use the Codepath column names (values)
+    assignments_map = config['ColumnMapping']['Assignments']
+    codepath_columns = list(assignments_map.values())
     
-    print("\nChecking assignments:", assignment_columns)
+    print("\nChecking assignments:", codepath_columns)
     
     for student, row in data.items():
+        # Double check status (in case it's checked at a different point)
+        certificate_status = row.get('CodePath Certificate Status', '').strip()
+        if certificate_status == 'Dropped':
+            continue
+            
         student_missing = []
-        for column in assignment_columns:
-            # Check if the submission is blank or only whitespace
-            if column in row and (not row[column].strip() or row[column].strip() == '0'):
-                student_missing.append(column)
+        for codepath_col in codepath_columns:
+            # Check if the column exists in the data
+            if codepath_col in row:
+                # Check if the submission is blank or only whitespace or '0'
+                if not row[codepath_col].strip() or row[codepath_col].strip() == '0':
+                    # Find the Canvas assignment name for reporting
+                    canvas_name = next(k for k, v in assignments_map.items() if v == codepath_col)
+                    student_missing.append(canvas_name)
+            else:
+                print(f"Warning: Assignment column '{codepath_col}' not found in CSV for student {student}")
         
         if student_missing:
             missing_assignments[student] = student_missing
     
-    return missing_assignments, assignment_columns
+    return missing_assignments, codepath_columns
 
-def compare_grades(old_file, new_file, columns_to_compare):
-    old_data = parse_csv(old_file)
-    new_data = parse_csv(new_file)
-
-    print("\nColumns we're looking for:")
-    print(columns_to_compare)
-
-    updates = []
-
-    for student, new_row in new_data.items():
-        if student in old_data:
-            old_row = old_data[student]
-            for column in columns_to_compare:
-                if column in old_row and column in new_row:
-                    # Convert to float for comparison, handling empty strings
-                    old_value = float(old_row[column].strip()) if old_row[column].strip() else 0.0
-                    new_value = float(new_row[column].strip()) if new_row[column].strip() else 0.0
-                    if abs(new_value - old_value) > 0.01:  # Use small epsilon for float comparison
-                        print(f"\nFound difference for {student} in {column}:")
-                        print(f"  Old: {old_value}")
-                        print(f"  New: {new_value}")
-                        updates.append((student, column, str(old_value), str(new_value)))
-                else:
-                    if column not in old_row:
-                        print(f"\nWarning: Column '{column}' not found in old file for student {student}")
-                    if column not in new_row:
-                        print(f"\nWarning: Column '{column}' not found in new file for student {student}")
-
-    return updates
-
-def get_latest_csv_files(root_directory):
+def get_latest_csv_file(root_directory, config):
     canvas_files = []
+    pattern = config.get('CodepathCsvPattern', '')
+    if not pattern:
+        raise ValueError("CodepathCsvPattern not found in config.json")
+        
     for dirpath, dirnames, filenames in os.walk(root_directory):
         for filename in filenames:
-            if filename.startswith('2024') and 'Canvas' in filename and filename.endswith('.csv') and not filename.endswith('-missing.csv'):
+            # Skip files that are output files from previous runs
+            if any(suffix in filename for suffix in ['-missing.csv', '-not-submitted.csv']):
+                continue
+                
+            if pattern in filename and filename.endswith('.csv'):
                 full_path = os.path.join(dirpath, filename)
                 canvas_files.append((full_path, os.path.getmtime(full_path)))
     
-    sorted_files = sorted(canvas_files, key=lambda x: x[1], reverse=True)
-    return [f[0] for f in sorted_files[:2]] if len(sorted_files) >= 2 else None
+    if not canvas_files:
+        raise FileNotFoundError(f"No CSV files matching pattern '{pattern}' found in the directory")
+        
+    # Get the most recent file
+    latest_file = max(canvas_files, key=lambda x: x[1])[0]
+    print(f"Found latest Codepath file: {os.path.basename(latest_file)}")
+    return latest_file
+
+def get_script_directory():
+    """Get the directory where the script is located"""
+    return os.path.dirname(os.path.abspath(__file__))
 
 def main():
     config = load_config()
-    # Use Canvas assignment names (keys) instead of Codepath column names (values)
-    columns_to_compare = list(config['ColumnMapping']['Assignments'].keys())
+    # Use Codepath column names (values) instead of Canvas names (keys)
+    columns_to_compare = list(config['ColumnMapping']['Assignments'].values())
     print(f"Columns to compare: {columns_to_compare}")
 
-    old_file = '/Users/yoda26/Documents/FAU/Mobile-App-Fall-2024/Grades/Final-Grades-Submitted-2024-12-14T2216_Canvas-COT5930_005_16523.csv'
-    new_file = '/Users/yoda26/Documents/FAU/Mobile-App-Fall-2024/Grades/Final-Grades-Post-Submit-2024-12-16T2239_Grades-COT5930_005_16523.csv'
-    
-    print(f"\nComparing files:")
-    print(f"Old file: {os.path.basename(old_file)}")
-    print(f"New file: {os.path.basename(new_file)}\n")
-
-    updates = compare_grades(old_file, new_file, columns_to_compare)
-
-    # Create output filename based on new Canvas file name
-    output_filename = new_file.rsplit('.', 1)[0] + '.out'
-
-    with open(output_filename, 'w') as f:
-        if updates:
-            f.write(f"Grade Updates Report - Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Comparing:\n")
-            f.write(f"  Old: {os.path.basename(old_file)}\n")
-            f.write(f"  New: {os.path.basename(new_file)}\n\n")
-            for student, column, old_value, new_value in updates:
-                f.write(f"Student: {student}\n")
-                f.write(f"  Assignment: {column}\n")
-                f.write(f"  Change: {old_value} → {new_value}\n")
-                f.write("\n")
-                # Also print to console for immediate viewing
-                print(f"Student: {student}")
-                print(f"  Assignment: {column}")
-                print(f"  Change: {old_value} → {new_value}\n")
-            print(f"\nUpdates have been written to {output_filename}")
-        else:
-            print("No updates found between the files.")
-            f.write(f"Grade Updates Report - Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write("No grade changes were found between the files.\n")
-            print(f"No updates found. Result written to {output_filename}")
-
-    # Check for missing submissions
-    file_path = new_file
+    # Get the latest Canvas file using pattern from config
+    script_dir = get_script_directory()
+    root_directory = os.path.join(script_dir, 'data')
+    if not os.path.exists(root_directory):
+        raise FileNotFoundError(f"Data directory not found at: {root_directory}")
+        
+    file_path = get_latest_csv_file(root_directory, config)
     print(f"\nAnalyzing file: {os.path.basename(file_path)}")
     
-    # Parse the CSV file
-    data = parse_csv(file_path)
+    # Parse the CSV file with config for headers
+    data = parse_csv(file_path, config)
     
-    # Get the headers from the first row
+    # Get the headers from the cleaned data
     with open(file_path, 'r') as csvfile:
-        reader = csv.DictReader(csvfile)
+        lines = remove_lines_before_headers(file_path, config["HeadersToLookFor"])
+        reader = csv.DictReader(StringIO(''.join(lines)))
         headers = list(reader.fieldnames)
     
     # Find missing submissions
-    missing_assignments, checked_columns = find_missing_submissions(data, headers)
+    missing_assignments, checked_columns = find_missing_submissions(data, headers, config)
     
-    # Generate report
-    output_filename = os.path.splitext(file_path)[0] + '-missing.csv'
+    # Generate report with updated naming
+    output_filename = os.path.splitext(file_path)[0] + '-not-submitted.csv'
     
     # Write results to both console and file
-    print("\nMissing Submissions Report:")
+    print("\nNot Submitted Assignments Report:")
     print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"File analyzed: {os.path.basename(file_path)}")
     print("\nFindings:")
@@ -149,22 +153,22 @@ def main():
     with open(output_filename, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header
-        writer.writerow(['Student', 'Missing Assignments'])
+        writer.writerow(['Student', 'Not Submitted Assignments'])
         
         # Write data and print to console
         if missing_assignments:
             for student, assignments in missing_assignments.items():
                 writer.writerow([student, ', '.join(assignments)])
                 print(f"\nStudent: {student}")
-                print("Missing assignments:")
+                print("Not submitted assignments:")
                 for assignment in assignments:
                     print(f"  - {assignment}")
         else:
-            print("No missing assignments found!")
-            writer.writerow(['No missing assignments found', ''])
+            print("No unsubmitted assignments found!")
+            writer.writerow(['No unsubmitted assignments found', ''])
     
     print(f"\nDetailed report has been written to: {os.path.basename(output_filename)}")
-    print(f"Total number of students with missing assignments: {len(missing_assignments)}")
+    print(f"Total number of students with unsubmitted assignments: {len(missing_assignments)}")
 
 if __name__ == "__main__":
     main()
