@@ -2,6 +2,7 @@ import csv
 import os
 import json
 from datetime import datetime
+from collections import defaultdict
 
 def load_config():
     with open('config.json', 'r') as config_file:
@@ -61,6 +62,52 @@ def get_latest_csv_files(root_directory):
     sorted_files = sorted(canvas_files, key=lambda x: x[1], reverse=True)
     return [f[0] for f in sorted_files[:2]] if len(sorted_files) >= 2 else None
 
+def summarize_submissions_by_project(file_path, config):
+    # Parse the CSV file
+    data = parse_csv(file_path)
+    
+    # Get assignment columns from config
+    assignments_map = config['ColumnMapping']['Assignments']
+    canvas_columns = list(assignments_map.keys())
+    
+    # Initialize counters for each project
+    project_submissions = defaultdict(int)
+    project_total = defaultdict(int)
+    
+    # Count total students (excluding withdrawn/dropped)
+    total_students = len(data)
+    
+    # Count submissions for each project
+    for student, row in data.items():
+        for canvas_col in canvas_columns:
+            # Extract project number from the Canvas column name
+            project_num = canvas_col.split('(')[0].strip().split(':')[0].split()[-1]
+            
+            # Increment total count for this project
+            project_total[project_num] += 1
+            
+            # Check if the submission has a value (not blank, not just whitespace, and not '0')
+            if canvas_col in row and row[canvas_col].strip() and row[canvas_col].strip() != '0':
+                project_submissions[project_num] += 1
+    
+    # Sort projects by number
+    sorted_projects = sorted(project_total.keys(), key=lambda x: int(x))
+    
+    # Create summary
+    summary = []
+    for project in sorted_projects:
+        submitted = project_submissions[project]
+        total = project_total[project]
+        percentage = (submitted / total * 100) if total > 0 else 0
+        summary.append({
+            'project': project,
+            'submitted': submitted,
+            'total': total,
+            'percentage': percentage
+        })
+    
+    return summary, total_students
+
 def main():
     config = load_config()
     # Use Canvas assignment names (keys) instead of Codepath column names (values)
@@ -97,6 +144,41 @@ def main():
             print("No updates found between the files.")
             f.write("No updates found in the specified columns.\n")
             print(f"No updates found. Result written to {output_filename}")
+    
+    # Generate and print summary by project
+    summary, total_students = summarize_submissions_by_project(new_file, config)
+    
+    print("\n=== Submission Summary by Project ===")
+    print(f"Total active students: {total_students}")
+    print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"File analyzed: {os.path.basename(new_file)}")
+    print("\n{:<10} | {:<9} | {:<5} | {:<10}".format("Project", "Submitted", "Total", "Percentage"))
+    print("-" * 42)
+    
+    for item in summary:
+        print("{:<10} | {:<9} | {:<5} | {:<10}".format(
+            f"Project {item['project']}", 
+            item['submitted'], 
+            item['total'], 
+            f"{item['percentage']:.1f}%"
+        ))
+    
+    # Append summary to output file
+    with open(output_filename, 'a') as f:
+        f.write("\n\n=== Submission Summary by Project ===\n")
+        f.write(f"Total active students: {total_students}\n")
+        f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"File analyzed: {os.path.basename(new_file)}\n\n")
+        f.write("{:<10} | {:<9} | {:<5} | {:<10}\n".format("Project", "Submitted", "Total", "Percentage"))
+        f.write("-" * 42 + "\n")
+        
+        for item in summary:
+            f.write("{:<10} | {:<9} | {:<5} | {:<10}\n".format(
+                f"Project {item['project']}", 
+                item['submitted'], 
+                item['total'], 
+                f"{item['percentage']:.1f}%"
+            ))
 
 if __name__ == "__main__":
     main()
