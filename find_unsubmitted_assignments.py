@@ -55,35 +55,51 @@ def parse_csv(file_path, config):
 
 def find_missing_submissions(data, headers, config):
     missing_assignments = {}
+    project_stats = {}
     
     # Get assignment columns from config - use the Codepath column names (values)
     assignments_map = config['ColumnMapping']['Assignments']
     codepath_columns = list(assignments_map.values())
     
+    # Initialize project stats dictionary
+    for canvas_name, codepath_col in assignments_map.items():
+        project_name = canvas_name.split(':')[0].strip()
+        project_stats[project_name] = {'missing': 0, 'total': 0}
+    
     print("\nChecking assignments:", codepath_columns)
     
+    total_students = 0
     for student, row in data.items():
         # Double check status (in case it's checked at a different point)
         certificate_status = row.get('CodePath Certificate Status', '').strip()
         if certificate_status == 'Dropped':
             continue
             
+        total_students += 1
         student_missing = []
+        
         for codepath_col in codepath_columns:
             # Check if the column exists in the data
             if codepath_col in row:
+                # Find the Canvas assignment name for reporting
+                canvas_name = next(k for k, v in assignments_map.items() if v == codepath_col)
+                project_name = canvas_name.split(':')[0].strip()
+                
+                # Increment total count for this project
+                project_stats[project_name]['total'] += 1
+                
                 # Check if the submission is blank or only whitespace or '0'
                 if not row[codepath_col].strip() or row[codepath_col].strip() == '0':
-                    # Find the Canvas assignment name for reporting
-                    canvas_name = next(k for k, v in assignments_map.items() if v == codepath_col)
                     student_missing.append(canvas_name)
+                    # Increment missing count for this project
+                    project_stats[project_name]['missing'] += 1
             else:
                 print(f"Warning: Assignment column '{codepath_col}' not found in CSV for student {student}")
         
         if student_missing:
             missing_assignments[student] = student_missing
     
-    return missing_assignments, codepath_columns
+    return missing_assignments, codepath_columns, project_stats, total_students
 
 def get_latest_csv_file(root_directory, config):
     canvas_files = []
@@ -138,7 +154,7 @@ def main():
         headers = list(reader.fieldnames)
     
     # Find missing submissions
-    missing_assignments, checked_columns = find_missing_submissions(data, headers, config)
+    missing_assignments, checked_columns, project_stats, total_students = find_missing_submissions(data, headers, config)
     
     # Generate report with updated naming
     output_filename = os.path.splitext(file_path)[0] + '-not-submitted.csv'
@@ -166,9 +182,53 @@ def main():
         else:
             print("No unsubmitted assignments found!")
             writer.writerow(['No unsubmitted assignments found', ''])
+        
+        # Add empty rows as separator
+        writer.writerow([])
+        writer.writerow([])
+        
+        # Add project statistics summary to CSV
+        writer.writerow(['Project Submission Statistics'])
+        writer.writerow(['Project', 'Submitted', 'Unsubmitted', 'Total', 'Percentage'])
+        
+        for project_name, stats in sorted(project_stats.items()):
+            submitted = stats['total'] - stats['missing']
+            unsubmitted = stats['missing']
+            percentage = (submitted / stats['total']) * 100 if stats['total'] > 0 else 0
+            writer.writerow([project_name, submitted, unsubmitted, stats['total'], f"{percentage:.1f}%"])
     
     print(f"\nDetailed report has been written to: {os.path.basename(output_filename)}")
-    print(f"Total number of students with unsubmitted assignments: {len(missing_assignments)}")
+    
+    # Print project statistics table
+    print("\nProject Submission Statistics:")
+    print("-" * 75)
+    print(f"{'Project':<12} | {'Submitted':<10} | {'Unsubmitted':<12} | {'Total':<8} | {'Percentage':<10}")
+    print("-" * 75)
+    
+    # Prepare statistics table content for both console and file
+    stats_table = []
+    stats_table.append("Project Submission Statistics:")
+    stats_table.append("-" * 75)
+    stats_table.append(f"{'Project':<12} | {'Submitted':<10} | {'Unsubmitted':<12} | {'Total':<8} | {'Percentage':<10}")
+    stats_table.append("-" * 75)
+    
+    for project_name, stats in sorted(project_stats.items()):
+        submitted = stats['total'] - stats['missing']
+        unsubmitted = stats['missing']
+        percentage = (submitted / stats['total']) * 100 if stats['total'] > 0 else 0
+        line = f"{project_name:<12} | {submitted:<10} | {unsubmitted:<12} | {stats['total']:<8} | {percentage:.1f}%"
+        print(line)
+        stats_table.append(line)
+    
+    stats_table.append("-" * 75)
+    print("-" * 75)
+    
+    # Write statistics to updated.out file
+    updated_out_file = os.path.join(os.path.dirname(file_path), os.path.basename(file_path).replace('Codepath', 'Canvas') + '-updated.out')
+    
+    # Check if file exists and append to it, or create new file
+    with open(updated_out_file, 'a') as f:
+        f.write('\n\n' + '\n'.join(stats_table))
 
 if __name__ == "__main__":
     main()

@@ -98,10 +98,12 @@ def summarize_submissions_by_project(file_path, config):
     for project in sorted_projects:
         submitted = project_submissions[project]
         total = project_total[project]
+        unsubmitted = total - submitted
         percentage = (submitted / total * 100) if total > 0 else 0
         summary.append({
             'project': project,
             'submitted': submitted,
+            'unsubmitted': unsubmitted,
             'total': total,
             'percentage': percentage
         })
@@ -152,13 +154,14 @@ def main():
     print(f"Total active students: {total_students}")
     print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"File analyzed: {os.path.basename(new_file)}")
-    print("\n{:<10} | {:<9} | {:<5} | {:<10}".format("Project", "Submitted", "Total", "Percentage"))
-    print("-" * 42)
+    print("\n{:<10} | {:<9} | {:<12} | {:<5} | {:<10}".format("Project", "Submitted", "Unsubmitted", "Total", "Percentage"))
+    print("-" * 60)
     
     for item in summary:
-        print("{:<10} | {:<9} | {:<5} | {:<10}".format(
+        print("{:<10} | {:<9} | {:<12} | {:<5} | {:<10}".format(
             f"Project {item['project']}", 
             item['submitted'], 
+            item['unsubmitted'],
             item['total'], 
             f"{item['percentage']:.1f}%"
         ))
@@ -169,13 +172,14 @@ def main():
         f.write(f"Total active students: {total_students}\n")
         f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"File analyzed: {os.path.basename(new_file)}\n\n")
-        f.write("{:<10} | {:<9} | {:<5} | {:<10}\n".format("Project", "Submitted", "Total", "Percentage"))
-        f.write("-" * 42 + "\n")
+        f.write("{:<10} | {:<9} | {:<12} | {:<5} | {:<10}\n".format("Project", "Submitted", "Unsubmitted", "Total", "Percentage"))
+        f.write("-" * 60 + "\n")
         
         for item in summary:
-            f.write("{:<10} | {:<9} | {:<5} | {:<10}\n".format(
+            f.write("{:<10} | {:<9} | {:<12} | {:<5} | {:<10}\n".format(
                 f"Project {item['project']}", 
                 item['submitted'], 
+                item['unsubmitted'],
                 item['total'], 
                 f"{item['percentage']:.1f}%"
             ))
