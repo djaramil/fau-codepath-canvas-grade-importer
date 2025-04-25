@@ -81,7 +81,14 @@ def summarize_submissions_by_project(file_path, config):
     for student, row in data.items():
         for canvas_col in canvas_columns:
             # Extract project number from the Canvas column name
-            project_num = canvas_col.split('(')[0].strip().split(':')[0].split()[-1]
+            column_name = canvas_col.split('(')[0].strip()
+            
+            # Special case for Final Project
+            if 'Final Project:' in column_name:
+                project_num = 'Final'
+            else:
+                # Regular case: extract the project number
+                project_num = column_name.split(':')[0].split()[-1]
             
             # Increment total count for this project
             project_total[project_num] += 1
@@ -90,8 +97,14 @@ def summarize_submissions_by_project(file_path, config):
             if canvas_col in row and row[canvas_col].strip() and row[canvas_col].strip() != '0':
                 project_submissions[project_num] += 1
     
-    # Sort projects by number
-    sorted_projects = sorted(project_total.keys(), key=lambda x: int(x))
+    # Sort projects by number (handling non-numeric project names)
+    def sort_key(x):
+        try:
+            return (0, int(x))  # Numeric projects first, sorted by number
+        except ValueError:
+            return (1, x)  # Non-numeric projects after, sorted alphabetically
+    
+    sorted_projects = sorted(project_total.keys(), key=sort_key)
     
     # Create summary
     summary = []
