@@ -110,7 +110,7 @@ def get_latest_csv_file(root_directory, config):
     for dirpath, dirnames, filenames in os.walk(root_directory):
         for filename in filenames:
             # Skip files that are output files from previous runs
-            if any(suffix in filename for suffix in ['-missing.csv', '-not-submitted.csv']):
+            if any(suffix in filename for suffix in ['-missing.csv', '-not-submitted.csv', '-submission-summary.csv']):
                 continue
                 
             if pattern in filename and filename.endswith('.csv'):

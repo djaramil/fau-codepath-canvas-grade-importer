@@ -1,6 +1,6 @@
 {
-    "CanvasCsvPattern": "Canvas-COT5930_012_16128",
-    "CodepathCsvPattern": "Codepath-COT5930_012_16128",
+    "CanvasCsvPattern": "Canvas-COP4655_001_13208",
+    "CodepathCsvPattern": "Codepath-COP4655_001_13208",
     "HeadersToLookFor": [
         "Member ID",
         "Full Name"
@@ -10,14 +10,7 @@
         "Status": "Status",
         "SIS Login ID": "SIS Login ID",
         "Assignments": {
-            "Project 1: Community Board (2205060)": "ASN - 1 Points",
-            "Project 2: Flashcards Pt. 1 (2205062)": "ASN - 2 Points",
-            "Project 3: Flashcards Pt. 2 (2205064)": "ASN - 3 Points",
-            "Project 4: Veni Vici! (2205066)": "ASN - 4 Points",
-            "Project 5: Data Dashboard Pt. 1 (2205068)": "ASN - 5 Points",
-            "Project 6: Data Dashboard Pt. 2 (2212016)": "ASN - 6 Points",
-            "Project 7: Crewmates (2217666)": "ASN - 7 Points",
-            "Final Project: HobbyHub (2300040)": "ASN - 9 Points"
+            "Proj 1 (2417356)": "ASN - 1 Points"
         }
     }
 }
