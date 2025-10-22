@@ -41,9 +41,6 @@ def parse_csv(file_path, config):
     csv_data = StringIO(''.join(lines))
     
     reader = csv.DictReader(csv_data)
-    # Print headers to debug
-    print(f"\nHeaders in {os.path.basename(file_path)}:")
-    print(list(reader.fieldnames))
     
     for row in reader:
         student_name = row.get('Full Name', '')
@@ -156,79 +153,108 @@ def main():
     # Find missing submissions
     missing_assignments, checked_columns, project_stats, total_students = find_missing_submissions(data, headers, config)
     
-    # Generate report with updated naming
-    output_filename = os.path.splitext(file_path)[0] + '-not-submitted.csv'
-    
-    # Write results to both console and file
+    # Write results to console
     print("\nNot Submitted Assignments Report:")
     print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"File analyzed: {os.path.basename(file_path)}")
     print("\nFindings:")
     
-    # Write to CSV file
-    with open(output_filename, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        # Write header
-        writer.writerow(['Student', 'Not Submitted Assignments'])
-        
-        # Write data and print to console
-        if missing_assignments:
-            for student, assignments in missing_assignments.items():
-                writer.writerow([student, ', '.join(assignments)])
-                print(f"\nStudent: {student}")
-                print("Not submitted assignments:")
-                for assignment in assignments:
-                    print(f"  - {assignment}")
-        else:
-            print("No unsubmitted assignments found!")
-            writer.writerow(['No unsubmitted assignments found', ''])
-        
-        # Add empty rows as separator
-        writer.writerow([])
-        writer.writerow([])
-        
-        # Add project statistics summary to CSV
-        writer.writerow(['Project Submission Statistics'])
-        writer.writerow(['Project', 'Submitted', 'Unsubmitted', 'Total', 'Percentage'])
-        
-        for project_name, stats in sorted(project_stats.items()):
-            submitted = stats['total'] - stats['missing']
-            unsubmitted = stats['missing']
-            percentage = (submitted / stats['total']) * 100 if stats['total'] > 0 else 0
-            writer.writerow([project_name, submitted, unsubmitted, stats['total'], f"{percentage:.1f}%"])
+    # Print to console
+    if missing_assignments:
+        for student, assignments in missing_assignments.items():
+            print(f"\nStudent: {student}")
+            print("Not submitted assignments:")
+            for assignment in assignments:
+                print(f"  - {assignment}")
+    else:
+        print("No unsubmitted assignments found!")
     
-    print(f"\nDetailed report has been written to: {os.path.basename(output_filename)}")
+    # Get Canvas student count for comparison
+    canvas_pattern = config.get('CanvasCsvPattern', '')
+    canvas_student_count = None
+    if canvas_pattern:
+        codepath_basename = os.path.basename(file_path)
+        timestamp_part = codepath_basename.split('_')[0]
+        canvas_updated_file = os.path.join(root_directory, f"{timestamp_part}_{canvas_pattern}-updated.csv")
+        if os.path.exists(canvas_updated_file):
+            with open(canvas_updated_file, 'r') as f:
+                canvas_reader = csv.DictReader(f)
+                canvas_student_count = sum(1 for _ in canvas_reader)
     
     # Print project statistics table
-    print("\nProject Submission Statistics:")
-    print("-" * 75)
-    print(f"{'Project':<12} | {'Submitted':<10} | {'Unsubmitted':<12} | {'Total':<8} | {'Percentage':<10}")
-    print("-" * 75)
+    print("\n=== Project Submission Statistics ===")
+    print(f"Total students in Codepath: {total_students}")
+    if canvas_student_count:
+        print(f"Total students in Canvas: {canvas_student_count}")
+    print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"File analyzed: {os.path.basename(file_path)}")
+    print()
+    print("-" * 90)
+    print(f"{'Project':<17} | {'Submitted':<10} | {'Unsubmitted':<12} | {'Total':<8} | {'Percentage':<10}")
+    print("-" * 90)
     
     # Prepare statistics table content for both console and file
     stats_table = []
-    stats_table.append("Project Submission Statistics:")
-    stats_table.append("-" * 75)
-    stats_table.append(f"{'Project':<12} | {'Submitted':<10} | {'Unsubmitted':<12} | {'Total':<8} | {'Percentage':<10}")
-    stats_table.append("-" * 75)
+    stats_table.append("=== Project Submission Statistics ===")
+    stats_table.append(f"Total students in Codepath: {total_students}")
+    if canvas_student_count:
+        stats_table.append(f"Total students in Canvas: {canvas_student_count}")
+    stats_table.append(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    stats_table.append(f"File analyzed: {os.path.basename(file_path)}")
+    stats_table.append("")
+    stats_table.append("-" * 90)
+    stats_table.append(f"{'Project':<17} | {'Submitted':<10} | {'Unsubmitted':<12} | {'Total':<8} | {'Percentage':<10}")
+    stats_table.append("-" * 90)
     
     for project_name, stats in sorted(project_stats.items()):
         submitted = stats['total'] - stats['missing']
         unsubmitted = stats['missing']
         percentage = (submitted / stats['total']) * 100 if stats['total'] > 0 else 0
-        line = f"{project_name:<12} | {submitted:<10} | {unsubmitted:<12} | {stats['total']:<8} | {percentage:.1f}%"
+        line = f"{project_name:<17} | {submitted:<10} | {unsubmitted:<12} | {stats['total']:<8} | {percentage:.1f}%"
         print(line)
         stats_table.append(line)
     
-    stats_table.append("-" * 75)
-    print("-" * 75)
+    stats_table.append("-" * 90)
+    print("-" * 90)
     
-    # Write statistics to updated.out file
-    updated_out_file = os.path.join(os.path.dirname(file_path), os.path.basename(file_path).replace('Codepath', 'Canvas') + '-updated.out')
-    
-    # Check if file exists and append to it, or create new file
-    with open(updated_out_file, 'a') as f:
-        f.write('\n\n' + '\n'.join(stats_table))
+    # Append to .out file (matching the Canvas updated file pattern)
+    # Convert Codepath filename to Canvas pattern for .out file
+    canvas_pattern = config.get('CanvasCsvPattern', '')
+    if canvas_pattern:
+        # Extract timestamp from Codepath filename
+        codepath_basename = os.path.basename(file_path)
+        # Try to find a matching Canvas updated file
+        timestamp_part = codepath_basename.split('_')[0]  # Get timestamp like '2025-10-20T2058'
+        out_filename = os.path.join(root_directory, f"{timestamp_part}_{canvas_pattern}-updated.out")
+        
+        # Check if the .out file exists before appending
+        if os.path.exists(out_filename):
+            with open(out_filename, 'a') as f:
+                f.write("\n\n" + "="*60 + "\n")
+                f.write("NOT SUBMITTED ASSIGNMENTS REPORT\n")
+                f.write("="*60 + "\n")
+                f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"File analyzed: {os.path.basename(file_path)}\n\n")
+                
+                if missing_assignments:
+                    f.write("Findings:\n\n")
+                    for student, assignments in missing_assignments.items():
+                        f.write(f"Student: {student}\n")
+                        f.write("Not submitted assignments:\n")
+                        for assignment in assignments:
+                            f.write(f"  - {assignment}\n")
+                        f.write("\n")
+                else:
+                    f.write("No unsubmitted assignments found!\n")
+                
+                # Add statistics table
+                f.write("\n")
+                for line in stats_table:
+                    f.write(line + "\n")
+            
+            print(f"\nReport appended to {out_filename}")
+        else:
+            print(f"\nNote: .out file not found at {out_filename}, skipping append")
 
 if __name__ == "__main__":
     main()

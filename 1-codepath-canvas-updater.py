@@ -4,6 +4,29 @@ import os
 import tempfile
 import shutil
 import glob
+import re
+
+
+def parse_numeric_score(value):
+    """Extract a numeric score from strings like '0', '0.0', '0/10', '0 / 10'. Return None if not parsable."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return float(value)
+        except Exception:
+            return None
+    s = str(value).strip()
+    if not s:
+        return None
+    # Find first number in the string
+    m = re.search(r"-?\d+(?:\.\d+)?", s)
+    if not m:
+        return None
+    try:
+        return float(m.group(0))
+    except Exception:
+        return None
 
 
 def get_latest_csv(pattern, directory="data/"):
@@ -70,8 +93,8 @@ def main():
             return
 
         output_csv_filename = canvas_csv_filename.replace(".csv", "-updated.csv")
-        missing_emails_filename = output_csv_filename.replace(
-            "-updated.csv", "-missing.csv"
+        output_summary_filename = output_csv_filename.replace(
+            "-updated.csv", "-updated.out"
         )
 
         # Column name mapping
@@ -113,6 +136,11 @@ def main():
         updated_data = []
         emails_without_grades = []
         processed_emails = set()
+        zero_last_project = []  # Students with 0 on the last project
+
+        # Determine last assignment column from CodePath mapping order
+        assignment_cols_order = list(column_mapping["Assignments"].values())
+        last_assignment_codepath_col = assignment_cols_order[-1] if assignment_cols_order else None
 
         # print("\nProcessing CodePath students:")
         # Process CodePath students
@@ -160,7 +188,16 @@ def main():
                             updated_row = canvas_row.copy()
                             # Update grades using Assignments mapping
                             for canvas_col, codepath_col in column_mapping["Assignments"].items():
-                                updated_row[canvas_col] = row.get(codepath_col, "")
+                                grade_value = row.get(codepath_col, "")
+                                updated_row[canvas_col] = grade_value
+
+                            # If last assignment exists and its score is 0, record it
+                            if last_assignment_codepath_col is not None:
+                                last_val = row.get(last_assignment_codepath_col, "")
+                                score = parse_numeric_score(last_val)
+                                if score is not None and score == 0.0:
+                                    zero_last_project.append((email, student_name))
+
                             updated_data.append(updated_row)
                             processed_emails.add(email)
                             break
@@ -173,24 +210,72 @@ def main():
                 writer.writeheader()
                 writer.writerows(updated_data)
             print(f"Results written to {output_csv_filename}")
-
-        # Always create the missing emails file with headers, even if empty
-        with open(missing_emails_filename, "w", newline="") as missing_file:
-            writer = csv.writer(missing_file)
-            writer.writerow(["Email", "Student Name"])  # Add Student Name column
-            if emails_without_grades:
-                writer.writerows(emails_without_grades)  # Write both email and name
-                print(
-                    f"Missing students written to {missing_emails_filename}"
-                )
-            else:
-                print(
-                    f"No missing students written to {missing_emails_filename}"
-                )
+        
+        # Print missing students to console
+        if emails_without_grades:
+            print(f"\nMissing students (in Codepath but not in Canvas): {len(emails_without_grades)}")
+            for email, name in emails_without_grades:
+                print(f"  - {name} ({email})")
+        else:
+            print("\nNo missing students")
 
         # If we've reached this point without any exceptions, remove the temporary file
         os.remove(temp_codepath_csv_filename)
         print(f"Temporary file {temp_codepath_csv_filename} has been removed.")
+        
+        # Print the list of students with 0 on the last project
+        print("\nStudents with 0 on the last project:")
+        if zero_last_project:
+            for email, name in zero_last_project:
+                print(f"  - {name} ({email})")
+            print(f"Total students with 0 on the last project: {len(zero_last_project)}")
+            
+            # Print email lists in different formats
+            email_list_comma = ", ".join([email for email, name in zero_last_project])
+            email_list_semicolon = "; ".join([email for email, name in zero_last_project])
+            
+            print("\nEmail list for students with 0 (semicolon-separated for Outlook):")
+            print(email_list_semicolon)
+            print("\nEmail list (comma-separated):")
+            print(email_list_comma)
+        else:
+            print("  None")
+        
+        # Write summary output to .out file
+        with open(output_summary_filename, "w") as out_file:
+            out_file.write(f"Using Canvas file: {canvas_csv_filename}\n")
+            out_file.write(f"Using Codepath file: {codepath_csv_filename}\n")
+            out_file.write(f"Cleared headers from codepath file: {temp_codepath_csv_filename}\n")
+            out_file.write(f"Results written to {output_csv_filename}\n")
+            out_file.write(f"Temporary file {temp_codepath_csv_filename} has been removed.\n\n")
+            
+            # Write missing students section
+            if emails_without_grades:
+                out_file.write(f"Missing students (in Codepath but not in Canvas): {len(emails_without_grades)}\n")
+                for email, name in emails_without_grades:
+                    out_file.write(f"  - {name} ({email})\n")
+                out_file.write("\n")
+            else:
+                out_file.write("No missing students\n\n")
+            
+            out_file.write("Students with 0 on the last project:\n")
+            if zero_last_project:
+                for email, name in zero_last_project:
+                    out_file.write(f"  - {name} ({email})\n")
+                out_file.write(f"Total students with 0 on the last project: {len(zero_last_project)}\n\n")
+                
+                # Add email lists in both formats
+                out_file.write("Email list for students with 0 (semicolon-separated for Outlook):\n")
+                email_list_semicolon = "; ".join([email for email, name in zero_last_project])
+                out_file.write(email_list_semicolon + "\n\n")
+                
+                out_file.write("Email list (comma-separated):\n")
+                email_list_comma = ", ".join([email for email, name in zero_last_project])
+                out_file.write(email_list_comma + "\n")
+            else:
+                out_file.write("  None\n")
+        
+        print(f"Summary written to {output_summary_filename}")
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")

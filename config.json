@@ -10,7 +10,10 @@
         "Status": "Status",
         "SIS Login ID": "SIS Login ID",
         "Assignments": {
-            "Proj 1 (2417356)": "ASN - 1 Points"
+            "Proj 1 (2417356)": "ASN - 1 Points",
+            "Proj 2 (2417413)": "ASN - 2 Points",
+            "Proj 3 (2417415)": "ASN - 3 Points",
+            "Proj 4 (2417417)": "ASN - 4 Points"
         }
     }
 }

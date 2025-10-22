@@ -39,11 +39,14 @@ def compare_grades(old_file, new_file, columns_to_compare):
                         project_num = column.split('(')[0].strip().split(':')[0].split()[-1]
                         print(f"{student} - Project {project_num} - {old_value} -> {new_value}")
                         updates.append((student, column, str(old_value), str(new_value)))
-                else:
-                    if column not in old_row:
-                        print(f"\nWarning: Column '{column}' not found in old file for student {student}")
-                    if column not in new_row:
-                        print(f"\nWarning: Column '{column}' not found in new file for student {student}")
+                elif column not in old_row and column in new_row:
+                    # Column doesn't exist in old file, show new grade
+                    new_value = float(new_row[column].strip()) if new_row[column].strip() else 0.0
+                    project_num = column.split('(')[0].strip().split(':')[0].split()[-1]
+                    print(f"{student} - Project {project_num} -> {new_value}")
+                    updates.append((student, column, "N/A", str(new_value)))
+                elif column not in new_row:
+                    print(f"\nWarning: Column '{column}' not found in new file for student {student}")
 
     return updates
 
@@ -145,7 +148,10 @@ def main():
     # Create output filename based on new Canvas file name
     output_filename = new_file.rsplit('.', 1)[0] + '.out'
 
-    with open(output_filename, 'w') as f:
+    with open(output_filename, 'a') as f:
+        f.write("\n\n" + "="*60 + "\n")
+        f.write("GRADE COMPARISON\n")
+        f.write("="*60 + "\n")
         if updates:
             f.write("Updates found between:\n")
             f.write(f"  Old: {os.path.basename(old_file)}\n")
@@ -153,49 +159,15 @@ def main():
             for student, column, old_value, new_value in updates:
                 # Extract project number from the column name
                 project_num = column.split('(')[0].strip().split(':')[0].split()[-1]
-                f.write(f"{student} - Project {project_num} - {old_value} -> {new_value}\n")
-            print(f"Updates have been written to {output_filename}")
+                if old_value == "N/A":
+                    f.write(f"{student} - Project {project_num} -> {new_value}\n")
+                else:
+                    f.write(f"{student} - Project {project_num} - {old_value} -> {new_value}\n")
+            print(f"Updates have been appended to {output_filename}")
         else:
             print("No updates found between the files.")
             f.write("No updates found in the specified columns.\n")
-            print(f"No updates found. Result written to {output_filename}")
-    
-    # Generate and print summary by project
-    summary, total_students = summarize_submissions_by_project(new_file, config)
-    
-    print("\n=== Submission Summary by Project ===")
-    print(f"Total active students: {total_students}")
-    print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"File analyzed: {os.path.basename(new_file)}")
-    print("\n{:<10} | {:<9} | {:<12} | {:<5} | {:<10}".format("Project", "Submitted", "Unsubmitted", "Total", "Percentage"))
-    print("-" * 60)
-    
-    for item in summary:
-        print("{:<10} | {:<9} | {:<12} | {:<5} | {:<10}".format(
-            f"Project {item['project']}", 
-            item['submitted'], 
-            item['unsubmitted'],
-            item['total'], 
-            f"{item['percentage']:.1f}%"
-        ))
-    
-    # Append summary to output file
-    with open(output_filename, 'a') as f:
-        f.write("\n\n=== Submission Summary by Project ===\n")
-        f.write(f"Total active students: {total_students}\n")
-        f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"File analyzed: {os.path.basename(new_file)}\n\n")
-        f.write("{:<10} | {:<9} | {:<12} | {:<5} | {:<10}\n".format("Project", "Submitted", "Unsubmitted", "Total", "Percentage"))
-        f.write("-" * 60 + "\n")
-        
-        for item in summary:
-            f.write("{:<10} | {:<9} | {:<12} | {:<5} | {:<10}\n".format(
-                f"Project {item['project']}", 
-                item['submitted'], 
-                item['unsubmitted'],
-                item['total'], 
-                f"{item['percentage']:.1f}%"
-            ))
+            print(f"No updates found. Result appended to {output_filename}")
 
 if __name__ == "__main__":
     main()
