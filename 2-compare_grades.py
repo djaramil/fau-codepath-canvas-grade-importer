@@ -36,14 +36,14 @@ def compare_grades(old_file, new_file, columns_to_compare):
                     old_value = float(old_row[column].strip()) if old_row[column].strip() else 0.0
                     new_value = float(new_row[column].strip()) if new_row[column].strip() else 0.0
                     if abs(new_value - old_value) > 0.01:  # Use small epsilon for float comparison
-                        project_num = column.split('(')[0].strip().split(':')[0].split()[-1]
-                        print(f"{student} - Project {project_num} - {old_value} -> {new_value}")
+                        assignment_name = column.split('(')[0].strip()
+                        print(f"{student} - {assignment_name} - {old_value} -> {new_value}")
                         updates.append((student, column, str(old_value), str(new_value)))
                 elif column not in old_row and column in new_row:
                     # Column doesn't exist in old file, show new grade
                     new_value = float(new_row[column].strip()) if new_row[column].strip() else 0.0
-                    project_num = column.split('(')[0].strip().split(':')[0].split()[-1]
-                    print(f"{student} - Project {project_num} -> {new_value}")
+                    assignment_name = column.split('(')[0].strip()
+                    print(f"{student} - {assignment_name} -> {new_value}")
                     updates.append((student, column, "N/A", str(new_value)))
                 elif column not in new_row:
                     print(f"\nWarning: Column '{column}' not found in new file for student {student}")
@@ -157,12 +157,12 @@ def main():
             f.write(f"  Old: {os.path.basename(old_file)}\n")
             f.write(f"  New: {os.path.basename(new_file)}\n\n")
             for student, column, old_value, new_value in updates:
-                # Extract project number from the column name
-                project_num = column.split('(')[0].strip().split(':')[0].split()[-1]
+                # Extract assignment name from the column name
+                assignment_name = column.split('(')[0].strip()
                 if old_value == "N/A":
-                    f.write(f"{student} - Project {project_num} -> {new_value}\n")
+                    f.write(f"{student} - {assignment_name} -> {new_value}\n")
                 else:
-                    f.write(f"{student} - Project {project_num} - {old_value} -> {new_value}\n")
+                    f.write(f"{student} - {assignment_name} - {old_value} -> {new_value}\n")
             print(f"Updates have been appended to {output_filename}")
         else:
             print("No updates found between the files.")

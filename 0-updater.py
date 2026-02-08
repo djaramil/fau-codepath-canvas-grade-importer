@@ -7,6 +7,11 @@ Runs all grade processing scripts in the correct order:
 3. Find unsubmitted assignments
 """
 
+# // "Unit 7 (2417424)": "GM - 7 Score",
+# // "Unit 8 (2417425)": "GM - 8 Score",
+# // "Unit 9 (2417426)": "GM - 9 Score",
+# // "Unit 10 (2417424)": "GM - 10 Score"
+
 import sys
 import os
 from datetime import datetime
