@@ -7,6 +7,7 @@ Runs all grade processing scripts in the correct order:
 3. Find unsubmitted assignments
 """
 
+# "Proj-2 (2570578)": "ASN - 2 Points"
 # // "Unit 7 (2417424)": "GM - 7 Score",
 # // "Unit 8 (2417425)": "GM - 8 Score",
 # // "Unit 9 (2417426)": "GM - 9 Score",
