@@ -6,7 +6,7 @@ from io import StringIO
 
 def load_config():
     """Load configuration from config.json file"""
-    with open('config.json', 'r') as config_file:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'), 'r') as config_file:
         return json.load(config_file)
 
 def remove_lines_before_headers(file_path, headers):

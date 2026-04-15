@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 def load_config():
-    with open('config.json', 'r') as config_file:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'), 'r') as config_file:
         return json.load(config_file)
 
 def parse_csv(file_path):

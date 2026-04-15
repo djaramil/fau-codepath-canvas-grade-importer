@@ -5,7 +5,7 @@ from datetime import datetime
 from collections import defaultdict
 
 def load_config():
-    with open('config.json', 'r') as config_file:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'), 'r') as config_file:
         return json.load(config_file)
 
 def parse_csv(file_path):
@@ -131,7 +131,7 @@ def main():
     # Use Canvas assignment names (keys) instead of Codepath column names (values)
     columns_to_compare = list(config['ColumnMapping']['Assignments'].keys())
 
-    data_directory = 'data'
+    data_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
     latest_files = get_latest_csv_files(data_directory)
 
     if not latest_files:

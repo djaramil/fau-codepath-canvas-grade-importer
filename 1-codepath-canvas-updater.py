@@ -29,7 +29,7 @@ def parse_numeric_score(value):
         return None
 
 
-def get_latest_csv(pattern, directory="data/"):
+def get_latest_csv(pattern, directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")):
     # Find all files matching the pattern in the specified directory
     files = glob.glob(os.path.join(directory, f"*_{pattern}.csv"))
     if not files:
@@ -79,7 +79,7 @@ def remove_lines_before_headers(codepath_csv_filename, headers):
 def main():
     try:
         # Read the configuration file
-        with open("config.json", "r") as config_file:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json"), "r") as config_file:
             config = json.load(config_file)
 
         # Get the latest CSV files based on patterns
