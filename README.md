@@ -2,7 +2,7 @@
 
 Weekly Codepath → Canvas grade import for **COP4655 001 18078** (iOS102 Fall 2026). The Canvas export also includes the combined grad section **COT5930 003 21217**; keep the filename / `config.json` patterns on COP4655.
 
-Requires Python 3.13. New-semester reset: [`docs/new-semester.md`](docs/new-semester.md).
+Requires Python 3.13. New-semester reset: [`docs/new-semester.md`](docs/new-semester.md). End of term: [`docs/end-of-semester.md`](docs/end-of-semester.md).
 
 ## Weekly import
 
@@ -99,6 +99,8 @@ Grading process doc in Canvas: https://canvas.fau.edu/courses/202165/files/48437
 | Script | When |
 |---|---|
 | `compare_returning_students.py` | New semester — overlap vs previous Codepath course |
-| `5-compare_final_grades.py` | End of term — hardcoded paths, update before use |
-| `6-find_codepath_completers_in_roster.py` | Certificate / completer check |
-| `analyze_grades.py` | End of term borderline letter grades — hardcoded path, update before use |
+| `analyze_grades.py` | End of term — letter-grade distribution + 0.6% borderline list from `data/Final-Grades-*Canvas*.csv` |
+| `5-compare_final_grades.py` | End of term — pre-submit vs post-submit Canvas finals (hardcoded paths) |
+| `6-find_codepath_completers_in_roster.py` | End of term — certificate / completer check |
+
+Details: [`docs/end-of-semester.md`](docs/end-of-semester.md).

@@ -22,7 +22,7 @@ Fall 2026 setup used:
 rm -f data/*.{csv,xlsx,out} next-semester/*.csv
 ```
 
-Keep the `data/` directory. Delete leftover end-of-term artifacts (`borderline_students.md`, etc.). Leave the Python scripts.
+Keep the `data/` directory. Delete leftover end-of-term artifacts (`borderline_students.md`, `Final-Grades-*` copies you don't need). Leave the Python scripts, including `analyze_grades.py`.
 
 ## 3. Point config at the new Canvas export name
 
@@ -79,8 +79,8 @@ If Canvas already has Proj 2 but Codepath ASN-2 is not due, leave it out. Mappin
 | `README.md` | Course pattern, assignment table, example filenames |
 | `compare_returning_students.py` | New roster/Canvas file vs previous term's final Canvas export |
 | `0-updater.py` | Comment is just a reminder; real mapping is `config.json` |
-| `5-compare_final_grades.py` | End of term only |
-| `analyze_grades.py` | End of term only |
+| `5-compare_final_grades.py` | End of term only — hardcoded paths, see [`end-of-semester.md`](end-of-semester.md) |
+| `analyze_grades.py` | End of term — auto-picks `data/Final-Grades-*Canvas*.csv`; no path edit unless the naming convention changes |
 
 ## 6. Returning students
 
@@ -109,3 +109,5 @@ Email those two groups separately. Incomplete can still resubmit until drop-dead
 ## 8. After that
 
 Weekly process in the README. Add the next `Assignments` entry when that project is due, using the Canvas ID from a fresh grades export — IDs change every semester.
+
+End-of-term borderline / finals posting: [`end-of-semester.md`](end-of-semester.md).
