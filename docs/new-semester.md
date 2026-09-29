@@ -78,8 +78,8 @@ If Canvas already has Proj 2 but Codepath ASN-2 is not due, leave it out. Mappin
 |---|---|
 | `README.md` | Course pattern, assignment table, example filenames |
 | `compare_returning_students.py` | New roster/Canvas file vs previous term's final Canvas export |
-| `0-updater.py` | Comment is just a reminder; real mapping is `config.json` |
-| `5-compare_final_grades.py` | End of term only — hardcoded paths, see [`end-of-semester.md`](end-of-semester.md) |
+| `1-process_grades.py` | Comment is just a reminder; real mapping is `config.json` |
+| `6-compare_final_grades.py` | End of term only — hardcoded paths, see [`end-of-semester.md`](end-of-semester.md) |
 | `analyze_grades.py` | End of term — auto-picks `data/Final-Grades-*Canvas*.csv`; no path edit unless the naming convention changes |
 
 ## 6. Returning students
@@ -93,7 +93,7 @@ Fall 2026: 25/162 from Spring 2026 COP4808 (15.4%). 0 retakes from Fall 2025 COP
 ## 7. First pipeline run
 
 ```bash
-python3 0-updater.py
+python3 1-process_grades.py
 ```
 
 Expected on run 1: step 2 cannot diff (only one Canvas file). Step 1 + 3 still run.

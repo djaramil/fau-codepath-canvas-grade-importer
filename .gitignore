@@ -3,4 +3,7 @@ node_modues/
 data/*.csv
 data/*.xlsx
 data/*.out
+data/*.crdownload
+data/.playwright-profile/
+data/.playwright-chromium-profile/
 *.csv

@@ -6,7 +6,7 @@ Weekly import stays in [`README.md`](../README.md). Do this after the last Codep
 
 Same weekly process. `config.json` `Assignments` should include every Codepath column you are posting (projects + final project / GM columns). Do not map Canvas-only labs.
 
-Run `python3 0-updater.py`, sanity-check `*-updated.csv`, upload to Canvas.
+Run `python3 1-process_grades.py`, sanity-check `*-updated.csv`, upload to Canvas.
 
 ## 2. Export Canvas finals
 
@@ -58,7 +58,7 @@ Stdout sections:
 
 Copy the borderline table into `borderline_students.md` if you want a record. That file is an artifact — delete it at next-semester reset, do not treat it as source.
 
-## 4. Post-submit check — `5-compare_final_grades.py`
+## 4. Post-submit check — `6-compare_final_grades.py`
 
 Compares two Canvas finals CSVs so you can catch a submit that didn't stick. Paths are **hardcoded** at the bottom of the script. Point them at:
 
@@ -68,10 +68,10 @@ Compares two Canvas finals CSVs so you can catch a submit that didn't stick. Pat
 Then:
 
 ```bash
-python3 5-compare_final_grades.py
+python3 6-compare_final_grades.py
 ```
 
-## 5. Codepath completers — `6-find_codepath_completers_in_roster.py`
+## 5. Codepath completers — `7-find_codepath_completers_in_roster.py`
 
 Optional. Cross-checks Codepath certificate / completer status against the roster. Needs the Codepath CSV (and completers export if you use one). Update paths in the script before running.
 

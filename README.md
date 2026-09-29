@@ -6,32 +6,37 @@ Requires Python 3.13. New-semester reset: [`docs/new-semester.md`](docs/new-seme
 
 ## Weekly import
 
-1. Export Canvas grades. Rename `Grades` → `Canvas`:
-
-   `2026-09-14T2229_Grades-COP4655_001_18078.csv` → `2026-09-14T2229_Canvas-COP4655_001_18078.csv`
-
-2. From the Codepath gradebook spreadsheet: **File → Download → CSV** and **XLS** (XLS is the archive copy):
-
-   `2026-09-14T2229_Codepath-COP4655_001_18078.csv`  
-   `2026-09-14T2229_Codepath-COP4655_001_18078.xlsx`
-
-3. Put all three in `data/`. Timestamp must match. CSVs are gitignored.
-
-4. If a new Codepath assignment is **due and being imported**, add it to `config.json` `Assignments`. Do not map a Canvas column whose Codepath assignment is not due yet — that writes zeros over Canvas.
-
-5. Run:
+1. Download fresh Canvas and CodePath grade files automatically:
 
    ```
-   python3 0-updater.py
+   python3 0-download_gradebooks.py
    ```
 
-6. Review `data/*-updated.out`, then upload `data/*-updated.csv` back into Canvas.
+   The script exports Canvas first, then downloads the CodePath spreadsheet as both CSV and XLSX. It saves matching timestamped files in `data/`. The script can fill the Google account ID automatically, but passwords and MFA remain manual. The login state is kept in `data/.playwright-chromium-profile/`.
 
-`0-updater.py` runs:
+2. If a new CodePath assignment is **due and being imported**, add it to `config.json` `Assignments`. Do not map a Canvas column whose CodePath assignment is not due yet — that writes zeros over Canvas.
 
-1. `1-codepath-canvas-updater.py` — match on email (`SIS Login ID` ↔ Codepath `Email`), copy mapped scores into a Canvas upload CSV
-2. `2-compare_grades.py` — diff vs the previous Canvas export (needs two Canvas files; skip on the first run of the semester)
-3. `3-find_unsubmitted_assignments.py` — split **submitted (C) / incomplete (I) / missing (M)**
+3. Process the latest matching files:
+
+   ```
+   python3 1-process_grades.py
+   ```
+
+   This creates `data/*-updated.csv` and the review report `data/*-updated.out`.
+
+4. Review the CSV and `.out` report. When ready, upload the processed CSV through the confirmation-gated Canvas uploader:
+
+   ```
+   python3 5-upload_gradebook.py
+   ```
+
+   The uploader requires typing `UPLOAD TO CANVAS` twice: once before opening the upload flow and again immediately before the final Canvas import action. It never uploads without those confirmations.
+
+`1-process_grades.py` runs:
+
+1. `2-codepath-canvas-updater.py` — match on email (`SIS Login ID` ↔ CodePath `Email`), copy mapped scores into a Canvas upload CSV
+2. `3-compare_grades.py` — diff vs the previous Canvas export (needs two Canvas files; skip on the first run of the semester)
+3. `4-find_unsubmitted_assignments.py` — split **submitted (C) / incomplete (I) / missing (M)**
 
 ## config.json
 
@@ -62,7 +67,7 @@ Requires Python 3.13. New-semester reset: [`docs/new-semester.md`](docs/new-seme
   | Lab 1 | 2819773 | Canvas-only |
   | Lab 2 | 2819774 | Canvas-only |
   | Proj 1 | 2819783 | `ASN - 1 Points` |
-  | Proj 2 | 2819784 | `ASN - 2 Points` (due Sep 27 — unmapped until then) |
+  | Proj 2 | 2819784 | `ASN - 2 Points` (mapped after Sep 27 due date) |
 
 ## Outputs
 
@@ -100,7 +105,7 @@ Grading process doc in Canvas: https://canvas.fau.edu/courses/202165/files/48437
 |---|---|
 | `compare_returning_students.py` | New semester — overlap vs previous Codepath course |
 | `analyze_grades.py` | End of term — letter-grade distribution + 0.6% borderline list from `data/Final-Grades-*Canvas*.csv` |
-| `5-compare_final_grades.py` | End of term — pre-submit vs post-submit Canvas finals (hardcoded paths) |
-| `6-find_codepath_completers_in_roster.py` | End of term — certificate / completer check |
+| `6-compare_final_grades.py` | End of term — pre-submit vs post-submit Canvas finals (hardcoded paths) |
+| `7-find_codepath_completers_in_roster.py` | End of term — certificate / completer check |
 
 Details: [`docs/end-of-semester.md`](docs/end-of-semester.md).

@@ -1,8 +1,36 @@
 import csv
 import os
 import json
+import re
 from datetime import datetime
 from io import StringIO
+
+def build_email_templates(project_name):
+    incomplete_template = f"""Subject: ACTION REQUIRED: {project_name} — incomplete submission (0)
+
+You received a 0 on {project_name} because your Codepath submission was graded as incomplete. That is not the same as missing — it was submitted, but it did not follow the assignment instructions, so it was not scored.
+You should have already received an email to your FAU account with a link to the grading report. That report is the source of truth for your submission. Read it.
+Typical reasons a submission is marked incomplete / 0:
+- Uploading a zip of your code to GitHub instead of a proper repo
+- Pushing LabX as ProjectX (even if the code was updated — if the project is still named LabX, it is not accepted)
+- Uploading a LabX video for a ProjectX submission
+- Video does not show all implemented features
+- README does not mark what you implemented
+- Missing README, missing animated GIF, and/or tasks completed not marked in the README
+Full grading process (when we grade, resubmits, what gets a 0):
+https://canvas.fau.edu/courses/202165/files/48437643?module_item_id=6817598
+Resubmissions are allowed only within the grading window. The {project_name} grading window has closed. Updates on GitHub, the README, or the video are not regraded unless you resubmit through the Codepath portal.
+I do not accept work after the deadline. If anything in the grading report is unclear, ask on the Codepath Discord channel now — don't wait."""
+
+    missing_zero_template = f"""Subject: ACTION REQUIRED: {project_name} — 0 (no submission recorded)
+
+You received a 0 on {project_name} because no {project_name} submission was recorded in the Codepath portal.
+You should have already received an email to your FAU account with a link to the grading report. That report is the source of truth for your submission. Read it.
+
+The {project_name} grading window has closed, so you cannot submit or resubmit {project_name} now. Updates on GitHub, the README, or the video are not regraded after the deadline.
+
+If you believe you submitted {project_name} before the deadline, ask on the Codepath Discord channel immediately and include evidence of the submission. I do not accept work after the deadline."""
+    return incomplete_template, missing_zero_template
 
 def load_config():
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'), 'r') as config_file:
@@ -51,6 +79,17 @@ def parse_csv(file_path, config):
     return data
 
 
+def load_canvas_emails(file_path):
+    if not file_path or not os.path.exists(file_path):
+        return set()
+    with open(file_path, "r", newline="") as canvas_file:
+        return {
+            (row.get("SIS Login ID") or "").strip().lower()
+            for row in csv.DictReader(canvas_file)
+            if (row.get("SIS Login ID") or "").strip()
+        }
+
+
 def status_column_for(points_col):
     """ASN - 1 Points -> ASN - 1 Status; GM - 7 Score -> GM - 7 Status"""
     if points_col.endswith(" Points"):
@@ -77,6 +116,45 @@ def classify_submission(row, points_col):
     if points == "0":
         return "incomplete"
     return "submitted"
+
+
+def build_issue_table(incomplete_assignments, missing_assignments, data, assignment_names):
+    students = sorted(
+        set(incomplete_assignments) | set(missing_assignments),
+        key=str.casefold,
+    )
+    display_assignment_names = [
+        re.sub(r"\s*\([^)]*\)", "", assignment).strip()
+        for assignment in assignment_names
+    ]
+    if not students:
+        return []
+
+    headers = ["Student", "Email"] + display_assignment_names
+    rows = []
+    for student in students:
+        row = [student, data.get(student, {}).get("Email", "").strip()]
+        for assignment in assignment_names:
+            if assignment in incomplete_assignments.get(student, []):
+                row.append("I")
+            elif assignment in missing_assignments.get(student, []):
+                row.append("M")
+            else:
+                row.append("—")
+        rows.append(row)
+
+    widths = [len(header) for header in headers]
+    for row in rows:
+        widths = [max(width, len(value)) for width, value in zip(widths, row)]
+
+    def format_row(row):
+        return " | ".join(
+            value.center(width) if index >= 2 else value.ljust(width)
+            for index, (value, width) in enumerate(zip(row, widths))
+        )
+
+    separator = "-+-".join("-" * width for width in widths)
+    return [format_row(headers), separator] + [format_row(row) for row in rows]
 
 
 def find_missing_submissions(data, headers, config):
@@ -175,6 +253,12 @@ def main():
     
     # Parse the CSV file with config for headers
     data = parse_csv(file_path, config)
+    canvas_pattern = config.get('CanvasCsvPattern', '')
+    timestamp_part = os.path.basename(file_path).split('_')[0]
+    canvas_updated_file = os.path.join(
+        root_directory, f"{timestamp_part}_{canvas_pattern}-updated.csv"
+    )
+    canvas_emails = load_canvas_emails(canvas_updated_file)
     
     # Get the headers from the cleaned data
     with open(file_path, 'r') as csvfile:
@@ -185,31 +269,87 @@ def main():
     # Find missing / incomplete submissions
     missing_assignments, incomplete_assignments, checked_columns, project_stats, total_students = find_missing_submissions(data, headers, config)
     
+    assignment_names = list(config['ColumnMapping']['Assignments'].keys())
+    last_assignment = assignment_names[-1]
+    last_project_name = re.sub(r"\s*\([^)]*\)", "", last_assignment).strip()
+    last_project_name = re.sub(r"^Proj\s+", "Project ", last_project_name)
+    last_incomplete_assignments = {
+        student: [last_assignment]
+        for student, assignments in incomplete_assignments.items()
+        if last_assignment in assignments
+    }
+    last_missing_assignments = {
+        student: [last_assignment]
+        for student, assignments in missing_assignments.items()
+        if last_assignment in assignments
+    }
+    incomplete_email_template, missing_zero_email_template = build_email_templates(
+        last_project_name
+    )
+    incomplete_table = build_issue_table(
+        last_incomplete_assignments,
+        {},
+        data,
+        [last_assignment],
+    )
+    missing_table = build_issue_table(
+        {},
+        last_missing_assignments,
+        data,
+        [last_assignment],
+    )
+
     # Write results to console
     print("\nNot Submitted / Incomplete Assignments Report:")
     print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"File analyzed: {os.path.basename(file_path)}")
     print("\nFindings:")
+    print("\n--- Incomplete ---")
+    print("\n".join(incomplete_table) if incomplete_table else "No incomplete assignments found!")
+    print("\n--- Missing ---")
+    print("\n".join(missing_table) if missing_table else "No missing assignments found!")
 
-    if incomplete_assignments:
-        print("\n--- Incomplete (submitted, scored 0) ---")
-        for student, assignments in incomplete_assignments.items():
-            print(f"\nStudent: {student}")
-            print("Incomplete assignments:")
-            for assignment in assignments:
-                print(f"  - {assignment}")
+    incomplete_email_rows = sorted([
+        (student, data.get(student, {}).get("Email", "").strip())
+        for student in last_incomplete_assignments
+    ], key=lambda row: row[0].casefold())
+    incomplete_email_rows = [
+        (student, email) for student, email in incomplete_email_rows if email
+    ]
+    print("\n--- Incomplete students: separate email list ---")
+    if incomplete_email_rows:
+        for student, email in incomplete_email_rows:
+            print(f"{student} — {email}")
+        print("\nOutlook list:")
+        print("; ".join(email for _, email in incomplete_email_rows))
     else:
-        print("\nNo incomplete assignments found!")
+        print("No incomplete students found!")
 
-    if missing_assignments:
-        print("\n--- Not submitted (missing) ---")
-        for student, assignments in missing_assignments.items():
-            print(f"\nStudent: {student}")
-            print("Not submitted assignments:")
-            for assignment in assignments:
-                print(f"  - {assignment}")
+    missing_zero_assignments = {
+        student: assignments
+        for student, assignments in last_missing_assignments.items()
+        if (data.get(student, {}).get("Email", "").strip().lower() in canvas_emails)
+    }
+    missing_zero_email_rows = sorted([
+        (student, data.get(student, {}).get("Email", "").strip())
+        for student in missing_zero_assignments
+    ], key=lambda row: row[0].casefold())
+    missing_zero_email_rows = [
+        (student, email) for student, email in missing_zero_email_rows if email
+    ]
+    print("\n--- Missing with zero: separate email list ---")
+    if missing_zero_email_rows:
+        for student, email in missing_zero_email_rows:
+            print(f"{student} — {email}")
+        print("\nOutlook list:")
+        print("; ".join(email for _, email in missing_zero_email_rows))
     else:
-        print("\nNo unsubmitted assignments found!")
+        print("No missing-with-zero students found!")
+
+    print("\n--- Incomplete email template ---\n")
+    print(incomplete_email_template)
+    print("\n--- Missing-with-zero email template ---\n")
+    print(missing_zero_email_template)
     
     # Get Canvas student count for comparison
     canvas_pattern = config.get('CanvasCsvPattern', '')
@@ -260,6 +400,34 @@ def main():
         stats_table.append(line)
     
     stats_table.append("-" * table_width)
+    stats_table.append("")
+    stats_table.append("--- Incomplete students: separate email list ---")
+    if incomplete_email_rows:
+        stats_table.extend(
+            f"{student} — {email}" for student, email in incomplete_email_rows
+        )
+        stats_table.append("")
+        stats_table.append("Outlook list:")
+        stats_table.append("; ".join(email for _, email in incomplete_email_rows))
+    else:
+        stats_table.append("No incomplete students found!")
+    stats_table.append("")
+    stats_table.append("--- Missing with zero: separate email list ---")
+    if missing_zero_email_rows:
+        stats_table.extend(
+            f"{student} — {email}" for student, email in missing_zero_email_rows
+        )
+        stats_table.append("")
+        stats_table.append("Outlook list:")
+        stats_table.append("; ".join(email for _, email in missing_zero_email_rows))
+    else:
+        stats_table.append("No missing-with-zero students found!")
+    stats_table.append("")
+    stats_table.append("--- Incomplete email template ---")
+    stats_table.extend(incomplete_email_template.splitlines())
+    stats_table.append("")
+    stats_table.append("--- Missing-with-zero email template ---")
+    stats_table.extend(missing_zero_email_template.splitlines())
     print("-" * table_width)
     
     # Append to .out file (matching the Canvas updated file pattern)
@@ -282,27 +450,16 @@ def main():
                 f.write(f"File analyzed: {os.path.basename(file_path)}\n\n")
                 
                 f.write("Findings:\n\n")
-                if incomplete_assignments:
-                    f.write("--- Incomplete (submitted, scored 0) ---\n\n")
-                    for student, assignments in incomplete_assignments.items():
-                        f.write(f"Student: {student}\n")
-                        f.write("Incomplete assignments:\n")
-                        for assignment in assignments:
-                            f.write(f"  - {assignment}\n")
-                        f.write("\n")
+                f.write("--- Incomplete ---\n")
+                if incomplete_table:
+                    f.write("\n".join(incomplete_table) + "\n")
                 else:
-                    f.write("No incomplete assignments found!\n\n")
-
-                if missing_assignments:
-                    f.write("--- Not submitted (missing) ---\n\n")
-                    for student, assignments in missing_assignments.items():
-                        f.write(f"Student: {student}\n")
-                        f.write("Not submitted assignments:\n")
-                        for assignment in assignments:
-                            f.write(f"  - {assignment}\n")
-                        f.write("\n")
+                    f.write("No incomplete assignments found!\n")
+                f.write("\n--- Missing ---\n")
+                if missing_table:
+                    f.write("\n".join(missing_table) + "\n")
                 else:
-                    f.write("No unsubmitted assignments found!\n")
+                    f.write("No missing assignments found!\n")
                 
                 # Add statistics table
                 f.write("\n")

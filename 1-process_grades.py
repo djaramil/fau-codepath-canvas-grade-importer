@@ -30,16 +30,16 @@ try:
         return module
     
     # Import each script as a module
-    updater = import_module_from_file("updater", os.path.join(script_dir, "1-codepath-canvas-updater.py"))
-    comparer = import_module_from_file("comparer", os.path.join(script_dir, "2-compare_grades.py"))
-    finder = import_module_from_file("finder", os.path.join(script_dir, "3-find_unsubmitted_assignments.py"))
+    updater = import_module_from_file("updater", os.path.join(script_dir, "2-codepath-canvas-updater.py"))
+    comparer = import_module_from_file("comparer", os.path.join(script_dir, "3-compare_grades.py"))
+    finder = import_module_from_file("finder", os.path.join(script_dir, "4-find_unsubmitted_assignments.py"))
     
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print("Make sure all three scripts are in the same directory:")
-    print("  - 1-codepath-canvas-updater.py")
-    print("  - 2-compare_grades.py")
-    print("  - 3-find_unsubmitted_assignments.py")
+    print("  - 2-codepath-canvas-updater.py")
+    print("  - 3-compare_grades.py")
+    print("  - 4-find_unsubmitted_assignments.py")
     sys.exit(1)
 
 
