@@ -68,6 +68,7 @@ Requires Python 3.13. New-semester reset: [`docs/new-semester.md`](docs/new-seme
   | Lab 2 | 2819774 | Canvas-only |
   | Proj 1 | 2819783 | `ASN - 1 Points` |
   | Proj 2 | 2819784 | `ASN - 2 Points` (mapped after Sep 27 due date) |
+  | Proj 3 | 2819781 | `ASN - 3 Points` |
 
 ## Outputs
 

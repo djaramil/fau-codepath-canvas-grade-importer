@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Download the Canvas gradebook and CodePath spreadsheet exports.
 
-The first run opens a persistent Playwright browser profile. If Canvas or
-Google requires authentication, log in in the opened browser and press Enter
-in the terminal when the page is ready.
+The first run opens a Playwright browser. Authentication state is saved in
+an ignored local file so later runs can reuse the Canvas and Google sessions.
+If either site expires the session, log in in the opened browser and continue.
 """
 
 import argparse
@@ -18,11 +18,12 @@ COURSE_ID = "COP4655_001_18078"
 CANVAS_URL = "https://canvas.fau.edu/courses/202165/gradebook?cid=4e69fa96-ff33-4748-bc3c-36479212eac2"
 CODEPATH_SHEET_ID = "1qZvNaYp28qw108fh4SyXGbQZO8lkX7uqZzH923Y3jqE"
 CODEPATH_SHEET_GID = "1915715505"
+CANVAS_ACCOUNT_EMAIL = "djaramil@fau.edu"
 GOOGLE_ACCOUNT_EMAIL = "djaramil@fau.edu"
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
-BROWSER_PROFILE_DIR = DATA_DIR / ".playwright-chromium-profile"
+AUTH_STATE_PATH = DATA_DIR / ".playwright-auth-state.json"
 
 
 def remove_partial_downloads() -> None:
@@ -31,26 +32,63 @@ def remove_partial_downloads() -> None:
 
 
 def wait_for_login_if_needed(page: Page, site_name: str) -> None:
-    """Pause for a manual login when the site redirects to an auth page."""
-    login_visible = page.locator('input[type="password"]').is_visible(timeout=3_000)
-    if not login_visible and "login" not in page.url.lower():
-        return
+    """Pause for a manual login when the site redirects to an auth page.
 
-    if site_name == "Google Sheets":
+    FAU SSO interstitial task screens ("FINISH LATER") are clicked through
+    automatically.
+    """
+    def needs_auth() -> bool:
+        try:
+            if page.locator('input[type="password"]').is_visible(timeout=500):
+                return True
+        except Exception:
+            pass
+        url = page.url.lower()
+        return "login" in url or "sso.fau.edu" in url
+
+    def dismiss_sso_interstitial() -> None:
+        try:
+            finish_later = page.get_by_role(
+                "button", name=re.compile(r"finish later", re.IGNORECASE)
+            )
+            if finish_later.is_visible(timeout=500):
+                finish_later.click()
+        except Exception:
+            pass
+
+    # SSO sessions can auto-redirect through login/SSO URLs; give them time to
+    # resolve, clicking through FAU SSO interstitials along the way.
+    for _ in range(30):
+        if not needs_auth():
+            return
+        dismiss_sso_interstitial()
+        page.wait_for_timeout(1_000)
+
+    if site_name in ("Canvas", "Google Sheets"):
         email_field = page.locator(
             'input[type="email"], input[name="identifier"], input[name="username"]'
         ).first
         if email_field.is_visible(timeout=3_000):
+            account_email = (
+                CANVAS_ACCOUNT_EMAIL if site_name == "Canvas" else GOOGLE_ACCOUNT_EMAIL
+            )
             if not email_field.input_value():
-                email_field.fill(GOOGLE_ACCOUNT_EMAIL)
+                email_field.fill(account_email)
             next_button = page.get_by_role(
-                "button", name=re.compile(r"^(Next|Continue)$", re.IGNORECASE)
+                "button", name=re.compile(r"^(Next|Continue|Log In)$", re.IGNORECASE)
             ).first
             if next_button.is_visible(timeout=3_000):
                 next_button.click()
 
     print(f"{site_name} requires authentication in the browser window.")
     input("Finish the password/MFA steps, then press Enter here to continue: ")
+
+    # Post-login SSO bounces can land on interstitials again; settle them too.
+    for _ in range(30):
+        if not needs_auth():
+            return
+        dismiss_sso_interstitial()
+        page.wait_for_timeout(1_000)
 
 
 def canvas_filename(download_name: str) -> tuple[str, str]:
@@ -65,8 +103,11 @@ def canvas_filename(download_name: str) -> tuple[str, str]:
 def download_canvas(context: BrowserContext) -> tuple[Path, str]:
     page = context.new_page()
     print("Opening Canvas gradebook...")
-    page.goto(CANVAS_URL, wait_until="domcontentloaded")
-    wait_for_login_if_needed(page, "Canvas")
+    for _ in range(3):
+        page.goto(CANVAS_URL, wait_until="domcontentloaded")
+        wait_for_login_if_needed(page, "Canvas")
+        if "/gradebook" in page.url:
+            break
     page.wait_for_load_state("networkidle")
 
     export_button = page.get_by_role("button", name=re.compile(r"^Export"))
@@ -91,8 +132,11 @@ def download_codepath(context: BrowserContext, timestamp: str) -> list[Path]:
     page = context.new_page()
     sheet_url = f"https://docs.google.com/spreadsheets/d/{CODEPATH_SHEET_ID}/edit?gid={CODEPATH_SHEET_GID}"
     print("Opening CodePath spreadsheet...")
-    page.goto(sheet_url, wait_until="domcontentloaded")
-    wait_for_login_if_needed(page, "Google Sheets")
+    for _ in range(3):
+        page.goto(sheet_url, wait_until="domcontentloaded")
+        wait_for_login_if_needed(page, "Google Sheets")
+        if CODEPATH_SHEET_ID in page.url:
+            break
 
     export_files = []
     for format_name, extension in (("csv", ".csv"), ("xlsx", ".xlsx")):
@@ -103,6 +147,13 @@ def download_codepath(context: BrowserContext, timestamp: str) -> list[Path]:
         destination = DATA_DIR / f"{timestamp}_Codepath-{COURSE_ID}{extension}"
         print(f"Downloading CodePath {format_name.upper()}...")
         response = context.request.get(export_url, timeout=60_000)
+        if response.status in (401, 403):
+            page.bring_to_front()
+            print("Google Sheets authentication is required in the browser window.")
+            input("Finish Google login/MFA, then press Enter here to retry: ")
+            page.goto(sheet_url, wait_until="domcontentloaded")
+            wait_for_login_if_needed(page, "Google Sheets")
+            response = context.request.get(export_url, timeout=60_000)
         if not response.ok:
             raise RuntimeError(
                 f"Google Sheets returned HTTP {response.status} for the {format_name.upper()} export. "
@@ -128,20 +179,21 @@ def main() -> None:
     DATA_DIR.mkdir(exist_ok=True)
     remove_partial_downloads()
     with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            str(BROWSER_PROFILE_DIR),
-            accept_downloads=True,
-            downloads_path=str(DATA_DIR),
-            headless=args.headless,
-        )
+        browser = playwright.chromium.launch(headless=args.headless)
+        context_options = {"accept_downloads": True}
+        if AUTH_STATE_PATH.exists():
+            context_options["storage_state"] = str(AUTH_STATE_PATH)
+        context = browser.new_context(**context_options)
         try:
             _, timestamp = download_canvas(context)
             download_codepath(context, timestamp)
         finally:
             try:
-                context.close()
+                context.storage_state(path=str(AUTH_STATE_PATH))
             except Exception:
                 pass
+            context.close()
+            browser.close()
 
     print(f"All downloads saved in {DATA_DIR}")
 

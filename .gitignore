@@ -6,4 +6,5 @@ data/*.out
 data/*.crdownload
 data/.playwright-profile/
 data/.playwright-chromium-profile/
+data/.playwright-auth-state.json
 *.csv

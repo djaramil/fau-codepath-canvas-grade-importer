@@ -40,11 +40,12 @@ def compare_grades(old_file, new_file, columns_to_compare):
                         print(f"{student} - {assignment_name} - {old_value} -> {new_value}")
                         updates.append((student, column, str(old_value), str(new_value)))
                 elif column not in old_row and column in new_row:
-                    # Column doesn't exist in old file, show new grade
+                    # A newly added assignment is only an update when it has a grade.
                     new_value = float(new_row[column].strip()) if new_row[column].strip() else 0.0
-                    assignment_name = column.split('(')[0].strip()
-                    print(f"{student} - {assignment_name} -> {new_value}")
-                    updates.append((student, column, "N/A", str(new_value)))
+                    if abs(new_value) > 0.01:
+                        assignment_name = column.split('(')[0].strip()
+                        print(f"{student} - {assignment_name} -> {new_value}")
+                        updates.append((student, column, "N/A", str(new_value)))
                 elif column not in new_row:
                     print(f"\nWarning: Column '{column}' not found in new file for student {student}")
 
@@ -156,13 +157,26 @@ def main():
             f.write("Updates found between:\n")
             f.write(f"  Old: {os.path.basename(old_file)}\n")
             f.write(f"  New: {os.path.basename(new_file)}\n\n")
+            table_rows = []
             for student, column, old_value, new_value in updates:
-                # Extract assignment name from the column name
                 assignment_name = column.split('(')[0].strip()
-                if old_value == "N/A":
-                    f.write(f"{student} - {assignment_name} -> {new_value}\n")
-                else:
-                    f.write(f"{student} - {assignment_name} - {old_value} -> {new_value}\n")
+                table_rows.append([student, assignment_name, old_value, new_value])
+
+            headers = ["Student", "Assignment", "Previous", "Updated"]
+            widths = [len(header) for header in headers]
+            for row in table_rows:
+                widths = [max(width, len(value)) for width, value in zip(widths, row)]
+
+            def format_row(row):
+                return " | ".join(
+                    value.ljust(width) for value, width in zip(row, widths)
+                )
+
+            separator = "-+-".join("-" * width for width in widths)
+            f.write(format_row(headers) + "\n")
+            f.write(separator + "\n")
+            for row in table_rows:
+                f.write(format_row(row) + "\n")
             print(f"Updates have been appended to {output_filename}")
         else:
             print("No updates found between the files.")

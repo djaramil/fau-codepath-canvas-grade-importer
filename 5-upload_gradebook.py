@@ -16,7 +16,7 @@ from playwright.sync_api import Page, sync_playwright
 CANVAS_URL = "https://canvas.fau.edu/courses/202165/gradebook?cid=4e69fa96-ff33-4748-bc3c-36479212eac2"
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
-BROWSER_PROFILE_DIR = DATA_DIR / ".playwright-chromium-profile"
+AUTH_STATE_PATH = DATA_DIR / ".playwright-auth-state.json"
 CONFIRMATION = "UPLOAD TO CANVAS"
 
 
@@ -31,10 +31,43 @@ def latest_updated_csv() -> Path:
 
 
 def wait_for_login_if_needed(page: Page) -> None:
-    login_visible = page.locator('input[type="password"]').is_visible(timeout=3_000)
-    if not login_visible and "login" not in page.url.lower():
-        return
+    """Wait out SSO redirects and pause for a manual login if needed.
+
+    FAU SSO interstitial task screens ("FINISH LATER") are clicked through
+    automatically.
+    """
+    def needs_auth() -> bool:
+        try:
+            if page.locator('input[type="password"]').is_visible(timeout=500):
+                return True
+        except Exception:
+            pass
+        url = page.url.lower()
+        return "login" in url or "sso.fau.edu" in url
+
+    def dismiss_sso_interstitial() -> None:
+        try:
+            finish_later = page.get_by_role(
+                "button", name=re.compile(r"finish later", re.IGNORECASE)
+            )
+            if finish_later.is_visible(timeout=500):
+                finish_later.click()
+        except Exception:
+            pass
+
+    for _ in range(30):
+        if not needs_auth():
+            return
+        dismiss_sso_interstitial()
+        page.wait_for_timeout(1_000)
+
     input("Finish Canvas password/MFA login, then press Enter here to continue: ")
+
+    for _ in range(30):
+        if not needs_auth():
+            return
+        dismiss_sso_interstitial()
+        page.wait_for_timeout(1_000)
 
 
 def choose_file(page: Page, file_path: Path) -> None:
@@ -48,6 +81,19 @@ def choose_file(page: Page, file_path: Path) -> None:
         choose_file_button.click()
         file_input.wait_for(state="attached", timeout=10_000)
     file_input.set_input_files(str(file_path))
+
+
+def find_button(page: Page, pattern: str):
+    controls = page.locator(
+        "button:visible, input[type='submit']:visible, input[type='button']:visible"
+    )
+    labels = re.compile(pattern, re.IGNORECASE)
+    for index in range(controls.count() - 1, -1, -1):
+        control = controls.nth(index)
+        label = control.get_attribute("value") or control.inner_text()
+        if labels.search((label or "").strip()):
+            return control
+    return None
 
 
 def main() -> None:
@@ -69,15 +115,18 @@ def main() -> None:
         return
 
     with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            str(BROWSER_PROFILE_DIR),
-            accept_downloads=True,
-            headless=False,
-        )
+        browser = playwright.chromium.launch(headless=False)
+        context_options = {"accept_downloads": True}
+        if AUTH_STATE_PATH.exists():
+            context_options["storage_state"] = str(AUTH_STATE_PATH)
+        context = browser.new_context(**context_options)
         try:
             page = context.new_page()
-            page.goto(CANVAS_URL, wait_until="domcontentloaded")
-            wait_for_login_if_needed(page)
+            for _ in range(3):
+                page.goto(CANVAS_URL, wait_until="domcontentloaded")
+                wait_for_login_if_needed(page)
+                if "/gradebook" in page.url:
+                    break
             page.wait_for_load_state("networkidle")
 
             import_button = page.get_by_role("button", name=re.compile(r"^Import$", re.IGNORECASE))
@@ -90,17 +139,51 @@ def main() -> None:
                 print("Upload cancelled before the final Canvas action.")
                 return
 
-            final_button = page.get_by_role(
-                "button", name=re.compile(r"^(Upload|Process|Import)$", re.IGNORECASE)
-            ).last
-            final_button.wait_for(state="visible", timeout=15_000)
+            # Canvas gradebook import is two steps: "Upload Data" sends the CSV,
+            # then a preview appears with "Save Changes" to commit the import.
+            upload_button = page.get_by_role(
+                "button", name=re.compile(r"upload data", re.IGNORECASE)
+            ).first
+            try:
+                upload_button.wait_for(state="visible", timeout=30_000)
+            except Exception:
+                upload_button = find_button(
+                    page, r"^(Upload Data|Upload|Process)$"
+                )
+            if upload_button is None or not upload_button.is_visible():
+                raise RuntimeError(
+                    "Canvas did not show an upload control. "
+                    "Review the Canvas page and complete the import manually if needed."
+                )
+            upload_button.click()
+            print("CSV uploaded. Waiting for the preview / save control...")
+
+            final_button = None
+            for _ in range(60):
+                final_button = page.get_by_role(
+                    "button",
+                    name=re.compile(r"save changes|save|submit", re.IGNORECASE),
+                ).first
+                try:
+                    if final_button.is_visible(timeout=500):
+                        break
+                except Exception:
+                    final_button = None
+                page.wait_for_timeout(1_000)
+            if final_button is None:
+                raise RuntimeError(
+                    "Canvas did not show a final save control after upload. "
+                    "Review the Canvas page and complete the import manually if needed."
+                )
             final_button.click()
             print("Canvas import action submitted. Review Canvas for its completion status.")
         finally:
             try:
-                context.close()
+                context.storage_state(path=str(AUTH_STATE_PATH))
             except Exception:
                 pass
+            context.close()
+            browser.close()
 
 
 if __name__ == "__main__":
